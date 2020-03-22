@@ -7,6 +7,7 @@ find_package(ament_cmake REQUIRED)
 install(
   PROGRAMS
     scripts/airport_terminal/airport_terminal_loop_scenario.sh
+    scripts/airport_terminal/airport_terminal_loop_scenario2.sh
     scripts/airport_terminal/airport_terminal_spawn_robots.sh
   DESTINATION lib/${PROJECT_NAME}
 )
