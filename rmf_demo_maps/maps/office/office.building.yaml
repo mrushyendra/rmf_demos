@@ -7,6 +7,10 @@ levels:
     drawing:
       filename: office.png
     elevation: 0
+    fiducials:
+      - [288.103, 1092.053, f1]
+      - [1620.485, 1384.777, f2]
+      - [2758.967, 346.204, f3]
     flattened_x_offset: 0
     flattened_y_offset: 0
     floors:
@@ -208,6 +212,77 @@ levels:
       - [25, 38, {}]
       - [38, 24, {}]
       - [37, 38, {}]
+  L2:
+    doors:
+      - [0, 15, {motion_axis: [1, start], motion_degrees: [3, 90], motion_direction: [2, 1], name: [1, L2_main_door], type: [1, double_hinged]}]
+      - [21, 22, {motion_axis: [1, start], motion_degrees: [3, 90], motion_direction: [2, 1], name: [1, L2_hinged], type: [1, hinged]}]
+      - [23, 24, {motion_axis: [1, start], motion_degrees: [3, 90], motion_direction: [2, 1], name: [1, L2_sliding], type: [1, sliding]}]
+      - [25, 26, {motion_axis: [1, start], motion_degrees: [3, 90], motion_direction: [2, 1], name: [1, L2_double_sliding], type: [1, double_sliding]}]
+    drawing:
+      filename: office.png
+    elevation: 20
+    fiducials:
+      - [289.253, 1091.887, f1]
+      - [1622.141, 1380.798, f2]
+      - [2756.904, 344.656, f3]
+    flattened_x_offset: 0
+    flattened_y_offset: 0
+    floors:
+      - parameters: {texture_name: [1, blue_linoleum], texture_rotation: [3, 0], texture_scale: [3, 1]}
+        vertices: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 16]
+    lanes:
+      - [19, 20, {bidirectional: [4, true], demo_mock_floor_name: [1, ""], demo_mock_lift_name: [1, ""], graph_idx: [2, 0], orientation: [1, ""]}]
+    layers:
+      {}
+    measurements:
+      - [18, 17, {distance: [3, 8.409000000000001]}]
+    models:
+      - {model_name: ConfTable, name: ConfTable, static: true, x: 1541.953, y: 446.404, yaw: -1.5264, z: 0}
+    vertices:
+      - [1443.323, 301.313, 0, ""]
+      - [1387.001, 299.644, 0, ""]
+      - [1196.232, 275.901, 0, ""]
+      - [770.17, 129.598, 0, ""]
+      - [254.737, 1138.4, 0, ""]
+      - [583.566, 1281.011, 0, ""]
+      - [721.347, 1319.362, 0, ""]
+      - [930.86, 1381.861, 0, ""]
+      - [989.808, 1388.963, 0, ""]
+      - [1273.183, 1432.996, 0, ""]
+      - [1345.625, 1432.996, 0, ""]
+      - [1678.715, 1436.548, 0, ""]
+      - [1759.679, 1425.184, 0, ""]
+      - [2673.014, 1348.481, 0, ""]
+      - [2803.564, 349.404, 0, ""]
+      - [1659.475, 299.043, 0, ""]
+      - [1023.99, 229.71, 0, ""]
+      - [2951.612, 368.234, 0, ""]
+      - [2809.537, 1350.21, 0, ""]
+      - [978.152, 792.148, 0, L2_p1, {is_parking_spot: [4, false], spawn_robot_name: [1, magni3], spawn_robot_type: [1, Magni]}]
+      - [2161.266, 813.539, 0, L2_p2]
+      - [1291.318, 727.694, 0, ""]
+      - [1291.318, 913.4829999999999, 0, ""]
+      - [1512.738, 718.7859999999999, 0, ""]
+      - [1517.829, 916.028, 0, ""]
+      - [1774.88, 720.058, 0, ""]
+      - [1771.062, 935.116, 0, ""]
+    walls:
+      - [0, 1, {}]
+      - [1, 2, {}]
+      - [3, 4, {}]
+      - [4, 5, {}]
+      - [5, 6, {}]
+      - [6, 7, {}]
+      - [7, 8, {}]
+      - [8, 9, {}]
+      - [9, 10, {}]
+      - [10, 11, {}]
+      - [11, 12, {}]
+      - [12, 13, {}]
+      - [13, 14, {}]
+      - [14, 15, {}]
+      - [2, 16, {}]
+      - [16, 3, {}]
 lifts:
   {}
 name: building
