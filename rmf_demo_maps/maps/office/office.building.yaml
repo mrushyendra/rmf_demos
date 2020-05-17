@@ -237,7 +237,7 @@ levels:
     measurements:
       - [18, 17, {distance: [3, 8.409000000000001]}]
     models:
-      - {model_name: ConfTable, name: ConfTable, static: true, x: 1541.953, y: 446.404, yaw: -1.5264, z: 0}
+      - {model_name: ConfTable, name: ConfTable, static: true, x: 1525.398, y: 1126.073, yaw: -1.5264, z: 20}
     vertices:
       - [1443.323, 301.313, 0, ""]
       - [1387.001, 299.644, 0, ""]
