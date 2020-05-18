@@ -227,6 +227,7 @@ levels:
         vertices: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 16]
     lanes:
       - [19, 20, {bidirectional: [4, true], demo_mock_floor_name: [1, ""], demo_mock_lift_name: [1, ""], graph_idx: [2, 0], orientation: [1, ""]}]
+      - [20, 27, {bidirectional: [4, true], demo_mock_floor_name: [1, ""], demo_mock_lift_name: [1, ""], graph_idx: [2, 0], orientation: [1, ""]}]
     layers:
       {}
     measurements:
@@ -254,13 +255,14 @@ levels:
       - [2951.612, 368.234, 0, ""]
       - [2809.537, 1350.21, 0, ""]
       - [1575.566, 473.981, 0, L2_p1, {is_parking_spot: [4, true], spawn_robot_name: [1, magni3], spawn_robot_type: [1, Magni]}]
-      - [2193.802, 468.361, 0, L2_p2, {is_parking_spot: [4, true]}]
+      - [2209.673, 479.782, 0, L2_p2, {is_parking_spot: [4, true]}]
       - [2293.095, 1174.649, 0, ""]
       - [2296.842, 1275.815, 0, ""]
       - [934.848, 736.263, 0, ""]
       - [986.126, 637.1900000000001, 0, ""]
       - [1912.239, 726.505, 0, ""]
       - [2065.533, 724.434, 0, ""]
+      - [2215.408, 823.849, 0, L2_p3]
     walls:
       - [0, 1, {}]
       - [1, 2, {}]
