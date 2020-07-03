@@ -17,9 +17,9 @@ levels:
       - parameters: {texture_name: [1, blue_linoleum], texture_rotation: [3, 0], texture_scale: [3, 1]}
         vertices: [27, 28, 29, 30, 31, 13, 14, 15, 21, 20, 19, 22, 23, 24, 38, 25, 26, 36]
     lanes:
-      - [39, 40, {bidirectional: [4, true], demo_mock_floor_name: [1, ""], demo_mock_lift_name: [1, ""], graph_idx: [2, 0], orientation: [1, ""]}]
       - [40, 41, {bidirectional: [4, true], demo_mock_floor_name: [1, L1], demo_mock_lift_name: [1, Lift1], graph_idx: [2, 0], orientation: [1, ""]}]
-      - [41, 42, {bidirectional: [4, false], demo_mock_floor_name: [1, L2], demo_mock_lift_name: [1, Lift1], graph_idx: [2, 0], orientation: [1, ""]}]
+      - [39, 42, {bidirectional: [4, true], demo_mock_floor_name: [1, ""], demo_mock_lift_name: [1, ""], graph_idx: [2, 0], orientation: [1, ""]}]
+      - [42, 40, {bidirectional: [4, true], demo_mock_floor_name: [1, ""], demo_mock_lift_name: [1, ""], graph_idx: [2, 0], orientation: [1, ""]}]
     layers:
       {}
     measurements:
@@ -66,10 +66,10 @@ levels:
       - [612.9690000000001, 445.59, 0, ""]
       - [933.086, 744.676, 0, ""]
       - [655.919, 1280.411, 0, ""]
-      - [1364.76, 1336.717, 0, magni1_charger, {is_charger: [4, true], is_parking_spot: [4, true], spawn_robot_name: [1, magni1], spawn_robot_type: [1, Magni]}]
-      - [1366.564, 1106.335, 0, L1_p1]
+      - [1788.077, 1299.87, 0, magni1_charger, {is_charger: [4, true], is_parking_spot: [4, true], spawn_robot_name: [1, magni1], spawn_robot_type: [1, Magni]}]
+      - [1366.564, 1106.335, 0, L1_p2]
       - [1367.809, 789.936, 0, lift1]
-      - [1741.932, 784.624, 0, L1_p2]
+      - [1360.042, 1302.864, 0, L1_p1]
     walls:
       - [6, 7, {}]
       - [7, 12, {}]
@@ -186,7 +186,7 @@ lifts:
     level_doors:
       L1: [door1]
       L2: [door1]
-    reference_floor_name: L2
+    reference_floor_name: L1
     width: 2
     x: 1368
     y: 789.9
