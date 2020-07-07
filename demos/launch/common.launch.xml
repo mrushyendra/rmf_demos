@@ -26,6 +26,7 @@
   <!-- Door Supervisor -->
   <group>
     <node pkg="rmf_fleet_adapter" exec="door_supervisor"/>
+    <node pkg="rmf_fleet_adapter" exec="lift_supervisor"/>
   </group>
 
 </launch>

@@ -1,0 +1,5 @@
+<?xml version='1.0' ?>
+
+<launch>
+  <executable cmd="ros2 run rmf_demo_tasks request_loop -s magni1_charger -f lift1 -r magni -n 1" output="both"/>
+</launch>

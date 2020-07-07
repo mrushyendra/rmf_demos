@@ -110,7 +110,7 @@ levels:
       - [23, 24, {motion_axis: [1, start], motion_degrees: [3, 90], motion_direction: [2, 1], name: [1, L2_double_sliding], type: [1, double_sliding]}]
     drawing:
       filename: office.png
-    elevation: 5
+    elevation: 10
     fiducials:
       - [289.253, 1091.887, f1]
       - [1622.141, 1380.798, f2]
@@ -186,7 +186,7 @@ lifts:
     level_doors:
       L1: [door1]
       L2: [door1]
-    reference_floor_name: L1
+    reference_floor_name: L2
     width: 2
     x: 1368
     y: 789.9
