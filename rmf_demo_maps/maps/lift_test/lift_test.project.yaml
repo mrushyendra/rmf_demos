@@ -1,4 +1,6 @@
 building:
   filename: lift_test.building.yaml
 name: lift_test
+traffic_maps:
+  {}
 version: 1
