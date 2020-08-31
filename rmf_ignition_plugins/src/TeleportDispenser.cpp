@@ -63,26 +63,24 @@ public:
   using DispenserState = rmf_dispenser_msgs::msg::DispenserState;
   using DispenserRequest = rmf_dispenser_msgs::msg::DispenserRequest;
   using DispenserResult = rmf_dispenser_msgs::msg::DispenserResult;
-  using Pose3d = ignition::math::Pose3d;
 
 private:
   // Dispense request params
   bool _dispense = false;
   DispenserRequest latest;
-  std::string _request_guid;
-  std::string _target_guid;
-  std::string _transporter_type;
 
-  // General params
-  std::string _guid;
-  double _last_pub_time = 0.0;
-  bool _initialized = false;
   Entity _dispenser;
-  Entity _item_en;
-  bool _item_en_found = false;
-  bool _item_dispensed = false;
-  bool _try_fill_dispenser = false;
+  Entity _item_en; //item that dispenser may contain
+  std::string _guid;
   ignition::math::AxisAlignedBox _dispenser_vicinity_box;
+
+  double _last_pub_time = 0.0;
+  std::chrono::steady_clock::duration _sim_time;
+
+  bool _load_complete = false;
+  bool _item_en_found = false; // True if entity to be dispensed has been determined
+  bool _dispenser_filled = false; // True if entity is in the dispenser
+  bool tried_fill_dispenser = false; // Flag set to true if fill_dispenser() is called
 
   rclcpp::Node::SharedPtr _ros_node;
   rclcpp::Subscription<FleetState>::SharedPtr _fleet_state_sub;
@@ -95,8 +93,6 @@ private:
   std::unordered_map<std::string, bool> _past_request_guids;
 
   DispenserState _current_state;
-
-  std::chrono::steady_clock::duration _sim_time;
 
   rclcpp::Time simulation_now(const double t) const //common
   {
@@ -124,7 +120,7 @@ private:
         continue;
 
       const auto en_pos = ecm.Component<components::Pose>(en)->Data().Pos();
-      const double dist = en_pos.Distance(dispenser_pos); //need to get world pose
+      const double dist = en_pos.Distance(dispenser_pos);
       if (dist < nearest_dist) //to be common, maybe even earlier static part
       {
         nearest_dist = dist;
@@ -135,9 +131,9 @@ private:
     return found;
   }
 
-  void dispense_on_nearest_robot(EntityComponentManager& ecm, const std::string& fleet_name) const
+  void dispense_on_nearest_robot(EntityComponentManager& ecm, const std::string& fleet_name)
   {
-    if (!_item_en_found)
+    if (!_dispenser_filled)
       return;
 
     const auto fleet_state_it = _fleet_states.find(fleet_name);
@@ -165,11 +161,11 @@ private:
 
     auto cmd = ecm.Component<components::WorldPoseCmd>(_item_en);
     if (!cmd) {
-      auto pose = ignition::math::Pose3<double>();
-      ecm.CreateComponent(_item_en, components::WorldPoseCmd(pose));
+      ecm.CreateComponent(_item_en, components::WorldPoseCmd(ignition::math::Pose3<double>()));
     }
-    auto new_pose = ecm.Component<components::Pose>(robot_model)->Data() += ignition::math::Pose3<double>(0,0,1,0,0,0);
+    auto new_pose = ecm.Component<components::Pose>(robot_model)->Data() + ignition::math::Pose3<double>(0,0,0.5,0,0,0);
     ecm.Component<components::WorldPoseCmd>(_item_en)->Data() = new_pose;
+    _dispenser_filled = false;
   }
 
   void fleet_state_cb(FleetState::UniquePtr msg)
@@ -180,8 +176,8 @@ private:
   void send_dispenser_response(uint8_t status) const
   {
     DispenserResult response;
-    response.time = simulation_now(std::chrono::duration_cast<std::chrono::nanoseconds>(_sim_time).count() * 1e-9); //maybe there's a better way to do this
-    response.request_guid = _request_guid;
+    response.time = simulation_now(std::chrono::duration_cast<std::chrono::nanoseconds>(_sim_time).count() * 1e-9);
+    response.request_guid = latest.request_guid;
     response.source_guid = _guid;
     response.status = status;
     _result_pub->publish(response);
@@ -190,11 +186,8 @@ private:
   void dispenser_request_cb(DispenserRequest::UniquePtr msg)
   {
     latest = *msg;
-    _transporter_type = msg->transporter_type;
-    _request_guid = msg->request_guid;
-    _target_guid = msg->target_guid;
 
-    if (_guid == latest.target_guid && !_item_dispensed)
+    if (_guid == latest.target_guid)
     {
       const auto it = _past_request_guids.find(latest.request_guid);
       if (it != _past_request_guids.end())
@@ -221,7 +214,6 @@ private:
 
   void fill_dispenser(EntityComponentManager& ecm){
       const auto dispenser_pos = ecm.Component<components::Pose>(_dispenser)->Data().Pos();
-      //_dispenser_vicinity_box = ignition::math::Box<double>(0.1,0.1,0.1);
 
       double nearest_dist = 1.0;
       ecm.Each<components::Model, components::Name, components::Pose, components::Static>(
@@ -238,6 +230,7 @@ private:
             if (dist < nearest_dist) //&& _dispenser_vicinity_box.Intersects(m->BoundingBox()))
             {
               _item_en = en;
+              _dispenser_filled = true;
               _item_en_found = true;
               nearest_dist = dist;
 
@@ -254,7 +247,7 @@ private:
           return true;
         });
 
-      if (!_item_en_found)
+      if (!_dispenser_filled)
       {
         RCLCPP_WARN(_ros_node->get_logger(),
           "Could not find dispenser item model within 1 meter, "
@@ -263,7 +256,6 @@ private:
         RCLCPP_INFO(_ros_node->get_logger(),
           "Found dispenser item: [%s]", ecm.Component<components::Name>(_item_en)->Data().c_str());
       }
-      _try_fill_dispenser = true;
   }
 
 public:
@@ -320,7 +312,7 @@ public:
     _current_state.guid = _guid;
     _current_state.mode = DispenserState::IDLE;
 
-    _initialized = true;
+    _load_complete = true;
   }
 
   void PreUpdate(const UpdateInfo& info, EntityComponentManager& ecm) override
@@ -328,24 +320,29 @@ public:
     _sim_time = info.simTime;
     // TODO parallel thread executor?
     rclcpp::spin_some(_ros_node);
-    if (!_initialized) {
+    if (!_load_complete) {
       return;
     }
 
-    if(!_try_fill_dispenser){
+    // Only fill dispenser on very first PreUpdate() call. Do it here and not in Configure() so that all models have loaded
+    if(!_dispenser_filled && !tried_fill_dispenser){
       fill_dispenser(ecm);
+      tried_fill_dispenser = true;
     }
 
     if(_dispense){ // Only dispenses max once per call to PreUpdate()
       send_dispenser_response(DispenserResult::ACKNOWLEDGED);
 
-      RCLCPP_INFO(_ros_node->get_logger(), "Dispensing item");
-      dispense_on_nearest_robot(ecm, _transporter_type);
-      rclcpp::sleep_for(std::chrono::seconds(5));
-
-      _item_dispensed = true;
-      send_dispenser_response(DispenserResult::SUCCESS);
-      _item_en_found = false;
+      if(_dispenser_filled){
+        RCLCPP_INFO(_ros_node->get_logger(), "Dispensing item");
+        dispense_on_nearest_robot(ecm, latest.transporter_type);
+        //rclcpp::sleep_for(std::chrono::seconds(5));
+        send_dispenser_response(DispenserResult::SUCCESS);
+      } else {
+        RCLCPP_WARN(_ros_node->get_logger(),
+            "No item to dispense: [%s]", latest.request_guid);
+          send_dispenser_response(DispenserResult::FAILED);
+      }
       _dispense = false;
     }
 
@@ -362,11 +359,12 @@ public:
       _current_state.mode = DispenserState::IDLE;
       _state_pub->publish(_current_state);
 
-      if (_item_dispensed &&
-        _item_en_found /*&&
-        _model->BoundingBox().Intersects(
-          _item_model->BoundingBox())*/)
-        _item_dispensed = false;
+
+      if(_item_en_found
+        && ecm.Component<components::AxisAlignedBox>(_dispenser)->Data().Contains(
+          ecm.Component<components::Pose>(_item_en)->Data().Pos())) {
+        _dispenser_filled = true;
+      }
     }
   }
 };
