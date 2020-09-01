@@ -20,16 +20,24 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include <sdf/Geometry.hh>
+
 #include <ignition/plugin/Register.hh>
 
 #include <ignition/gazebo/System.hh>
 #include <ignition/gazebo/Model.hh>
+#include <ignition/gazebo/Link.hh>
 #include <ignition/gazebo/components/Model.hh>
 #include <ignition/gazebo/components/Name.hh>
 #include <ignition/gazebo/components/Pose.hh>
+#include <ignition/gazebo/components/PoseCmd.hh>
 #include <ignition/gazebo/components/Static.hh>
+#include <ignition/gazebo/components/AxisAlignedBox.hh>
 
 #include <ignition/math/Vector3.hh>
+#include <ignition/math/Pose3.hh>
+#include <ignition/math/Box.hh>
+#include <ignition/math/AxisAlignedBox.hh>
 
 #include <rclcpp/rclcpp.hpp>
 
@@ -55,21 +63,22 @@ public:
   using DispenserState = rmf_dispenser_msgs::msg::DispenserState;
   using DispenserRequest = rmf_dispenser_msgs::msg::DispenserRequest;
   using DispenserResult = rmf_dispenser_msgs::msg::DispenserResult;
-  using Pose3d = ignition::math::Pose3d;
 
 private:
   // Ingest request params
   bool _ingest = false;
-  std::string _request_guid;
-  std::string _target_guid;
-  std::string _transporter_type;
+  DispenserRequest latest;
 
   // General params
+  Entity _ingestor;
+  Entity _ingested_entity;
   std::string _guid;
+  bool _load_complete = false;
+  bool _ingestor_filled = false;
+
   double _last_pub_time = 0.0;
-  bool _initialized = false;
-  bool _contains_ingested_model = false;
-  Model _model;
+  double _last_ingested_time = 0.0;
+  std::chrono::steady_clock::duration _sim_time;
 
   rclcpp::Node::SharedPtr _ros_node;
   rclcpp::Subscription<FleetState>::SharedPtr _fleet_state_sub;
@@ -79,15 +88,9 @@ private:
 
   std::unordered_map<std::string, ignition::math::Pose3d>
   _non_static_models_init_poses;
-
   std::unordered_map<std::string, FleetState::UniquePtr> _fleet_states;
-
   std::unordered_map<std::string, bool> _past_request_guids;
-
   DispenserState _current_state;
-
-  std::chrono::steady_clock::duration _sim_time;
-  Entity _ingested_model; //may clash with '0' entity
 
   rclcpp::Time simulation_now(const double t) const
   {
@@ -97,9 +100,6 @@ private:
     return rclcpp::Time{t_sec, t_nsec, RCL_ROS_TIME};
   }
 
-  /*bool find_nearest_non_static_model(
-    const std::vector<gazebo::physics::ModelPtr>& models,
-    gazebo::physics::ModelPtr& nearest_model) const */
   bool find_nearest_non_static_model(
     const EntityComponentManager& ecm,
     const std::vector<Entity>& robot_model_entities,
@@ -107,7 +107,7 @@ private:
   {
     double nearest_dist = 1e6;
     bool found = false;
-    const auto ingestor_pos = ecm.Component<components::Pose>(_model.Entity())->Data().Pos();
+    const auto ingestor_pos = ecm.Component<components::Pose>(_ingestor)->Data().Pos();
 
     for (const auto& en : robot_model_entities)
     {
@@ -118,7 +118,7 @@ private:
         continue;
 
       const auto en_pos = ecm.Component<components::Pose>(en)->Data().Pos();
-      const double dist = en_pos.Distance(ingestor_pos); //need to get world pose
+      const double dist = en_pos.Distance(ingestor_pos);
       if (dist < nearest_dist)
       {
         nearest_dist = dist;
@@ -129,18 +129,14 @@ private:
     return found;
   }
 
-
-  /*bool get_payload_model(
-    const gazebo::physics::ModelPtr& robot_model,
-    gazebo::physics::ModelPtr& payload_model) const */
   bool get_payload_model(
     const EntityComponentManager& ecm,
     const Entity& robot_entity,
     Entity& payload_entity)
   {
-    if (!robot_entity)
-      return false;
-
+    if(ecm.Component<components::AxisAlignedBox>(robot_entity)){
+      std::cout << "Bounding box: " << ecm.Component<components::AxisAlignedBox>(robot_entity)->Data() << std::endl;
+    }
     //const ignition::math::Box robot_collision_bb = ecm.Component<components::BoundingBox>(robot_entity)->Data(); //robot_model->BoundingBox();
     //ignition::math::Vector3d max_corner = robot_collision_bb.Max(); //
 
@@ -164,16 +160,15 @@ private:
       const components::Static* is_static
       ) -> bool
       {
-        if (is_static->Data() && name->Data() != _model.Name(ecm) 
+        if (!is_static->Data() && name->Data() != _guid 
         && name->Data() != Model(robot_entity).Name(ecm))
         {
-          const double dist = pose->Data().Pos().Distance(robot_model_pos); //need world pose
+          const double dist = pose->Data().Pos().Distance(robot_model_pos);
           if (dist < nearest_dist) //&& vicinity_box.Intersects(model->BoundingBox()))//
           {
             payload_entity = entity;
             nearest_dist = dist;
             found = true;
-            _contains_ingested_model = true;
           }
         }
         return true;
@@ -192,18 +187,13 @@ private:
       return;
     }
 
-    //std::vector<gazebo::physics::ModelPtr> robot_model_list;
     std::vector<Entity> robot_model_list;
     for (const auto& rs : fleet_state_it->second->robots)
     {
       std::vector<Entity> entities = ecm.EntitiesByComponents(components::Name(rs.name), components::Model());
       robot_model_list.insert(robot_model_list.end(), entities.begin(), entities.end());
-      /*const auto r_model = _world->ModelByName(rs.name);
-      if (r_model)
-        robot_model_list.push_back(r_model);*/
     }
 
-    //gazebo::physics::ModelPtr robot_model;
     Entity robot_model;
     if (!find_nearest_non_static_model(ecm, robot_model_list, robot_model))
     {
@@ -212,31 +202,38 @@ private:
       return;
     }
 
-    if (!get_payload_model(ecm, robot_model, _ingested_model))
+    if (!get_payload_model(ecm, robot_model, _ingested_entity))
     {
       RCLCPP_WARN(_ros_node->get_logger(),
         "No delivery item found on the robot: [%s]",
         Model(robot_model).Name(ecm));
       return;
     }
-    
-    *(ecm.Component<components::Pose>(_ingested_model)) = *(ecm.Component<components::Pose>(_model.Entity())); //need world pose instead
-    //_ingested_model->SetWorldPose(_model->WorldPose());//
+
+    auto cmd = ecm.Component<components::WorldPoseCmd>(_ingested_entity);
+    if (!cmd) {
+      ecm.CreateComponent(_ingested_entity, components::WorldPoseCmd(ignition::math::Pose3<double>()));
+    }
+    auto new_pose = ecm.Component<components::Pose>(_ingestor)->Data()+ ignition::math::Pose3<double>(0,0,0.5,0,0,0);;
+    ecm.Component<components::WorldPoseCmd>(_ingested_entity)->Data() = new_pose;
+    _ingestor_filled = true;
   }
 
   void send_ingested_item_home(EntityComponentManager& ecm)
   {
-    if (_contains_ingested_model)
+    if (_ingestor_filled)
     {
-      const auto it = _non_static_models_init_poses.find(Model(_ingested_model).Name(ecm));
-      if (it == _non_static_models_init_poses.end())
-        ecm.RequestRemoveEntity(_ingested_model);
-        //_world->RemoveModel(_ingested_model);
-      else
-        ecm.Component<components::Pose>(_ingested_model)->Data() = it->second; //need world pose instead
-        //*(ecm.Component<components::Pose, class WorldPoseCmdTag>(_ingested_model)) = it->second; //does this even exist;
-
-      _contains_ingested_model = false;
+      const auto it = _non_static_models_init_poses.find(Model(_ingested_entity).Name(ecm));
+      if (it == _non_static_models_init_poses.end()) {
+        ecm.RequestRemoveEntity(_ingested_entity);
+      } else {
+        auto cmd = ecm.Component<components::WorldPoseCmd>(_ingested_entity);
+        if (!cmd) {
+          ecm.CreateComponent(_ingested_entity, components::WorldPoseCmd(ignition::math::Pose3<double>()));
+        }
+        ecm.Component<components::WorldPoseCmd>(_ingested_entity)->Data() = it->second;
+      }
+      _ingestor_filled = false;
     }
   }
 
@@ -249,7 +246,7 @@ private:
   {
     DispenserResult response;
     response.time = simulation_now(std::chrono::duration_cast<std::chrono::nanoseconds>(_sim_time).count() * 1e-9); //maybe there's a better way to do this
-    response.request_guid = _request_guid;
+    response.request_guid = latest.request_guid;
     response.source_guid = _guid;
     response.status = status;
     _result_pub->publish(response);
@@ -257,25 +254,23 @@ private:
 
   void dispenser_request_cb(DispenserRequest::UniquePtr msg)
   {
-    _transporter_type = msg->transporter_type;
-    _request_guid = msg->request_guid;
-    _target_guid = msg->target_guid;
+    latest = *msg;
 
-    if (_guid == msg->target_guid && !_contains_ingested_model)
+    if (_guid == latest.target_guid && !_ingestor_filled)
     {
-      const auto it = _past_request_guids.find(_request_guid);
+      const auto it = _past_request_guids.find(latest.request_guid);
       if (it != _past_request_guids.end())
       {
         if (it->second)
         {
           RCLCPP_WARN(_ros_node->get_logger(),
-            "Request already succeeded: [%s]", _request_guid);
+            "Request already succeeded: [%s]", latest.request_guid);
           send_ingestor_response(DispenserResult::SUCCESS);
         }
         else
         {
           RCLCPP_WARN(_ros_node->get_logger(),
-            "Request already failed: [%s]", _request_guid);
+            "Request already failed: [%s]", latest.request_guid);
           send_ingestor_response(DispenserResult::FAILED);
         }
         return;
@@ -290,14 +285,14 @@ public:
 
   void Configure(const Entity& entity,
     const std::shared_ptr<const sdf::Element>&,
-    EntityComponentManager& ecm, EventManager& /*_eventMgr */) override
+    EntityComponentManager& ecm, EventManager&) override
   {
     char const** argv = NULL;
     if (!rclcpp::is_initialized())
       rclcpp::init(0, argv);
 
-    _model = Model(entity);
-    _guid = _model.Name(ecm);
+    _ingestor = entity;
+    _guid = ecm.Component<components::Name>(_ingestor)->Data();
     std::string plugin_name("plugin_" + _guid);
     ignwarn << "Initializing plugin with name " << plugin_name << std::endl;
     _ros_node = std::make_shared<rclcpp::Node>(plugin_name);
@@ -344,34 +339,35 @@ public:
     _current_state.guid = _guid;
     _current_state.mode = DispenserState::IDLE;
 
-    _initialized = true;
+    _load_complete = true;
   }
 
   void PreUpdate(const UpdateInfo& info, EntityComponentManager& ecm) override
   {
     _sim_time = info.simTime;
+    double t =
+    (std::chrono::duration_cast<std::chrono::nanoseconds>(_sim_time).
+    count()) * 1e-9;
+
     // TODO parallel thread executor?
     rclcpp::spin_some(_ros_node);
-    if (!_initialized) {
+    if (!_load_complete) {
       return;
     }
 
-    if(_ingest){ // Only ingests max once per call to PreUpdate()
+    if(_ingest) { // Only ingests max once per call to PreUpdate()
       send_ingestor_response(DispenserResult::ACKNOWLEDGED);
 
       RCLCPP_INFO(_ros_node->get_logger(), "Ingesting item");
-      ingest_from_nearest_robot(ecm, _transporter_type);
+      ingest_from_nearest_robot(ecm, latest.transporter_type);
 
       send_ingestor_response(DispenserResult::SUCCESS);
 
-      rclcpp::sleep_for(std::chrono::seconds(10));
-      send_ingested_item_home(ecm);
+      //rclcpp::sleep_for(std::chrono::seconds(10));
+      //send_ingested_item_home(ecm);
+      _last_ingested_time = t;
       _ingest = false;
     }
-
-    double t =
-      (std::chrono::duration_cast<std::chrono::nanoseconds>(info.simTime).
-      count()) * 1e-9;
 
     if (t - _last_pub_time >= 2.0)
     {
@@ -381,7 +377,11 @@ public:
       _current_state.time = now;
       _current_state.mode = DispenserState::IDLE;
       _state_pub->publish(_current_state);
-    }  
+    }
+
+    if(t - _last_ingested_time >= 5.0 && _ingestor_filled){
+      send_ingested_item_home(ecm); 
+    }
   }
 };
 

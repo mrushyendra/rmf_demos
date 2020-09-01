@@ -41,14 +41,11 @@ ign_find_package(ignition-math4 REQUIRED)
 ign_find_package(sdformat9 REQUIRED)
 set(IGN_MATH_VER 4)
 
-#find_package(gazebo REQUIRED)
-#find_package(gazebo_ros REQUIRED)
-#find_package(gazebo_dev REQUIRED)
-#find_package(gazebo_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(rmf_fleet_msgs REQUIRED)
 find_package(rmf_dispenser_msgs REQUIRED)
 find_package(building_map_msgs REQUIRED)
+#find_package(rmf_plugins_common REQUIRED)
 
 include(GNUInstallDirs)
 
@@ -63,9 +60,7 @@ target_link_libraries(teleport_ingestor
     ${rclcpp_LIBRARIES}
     ignition-gazebo${IGN_GAZEBO_VER}::ignition-gazebo${IGN_GAZEBO_VER}
     ignition-plugin${IGN_PLUGIN_VER}::ignition-plugin${IGN_PLUGIN_VER}
-    #${building_sim_common_LIBRARIES}
-    #${GAZEBO_LIBRARIES}
-    #${gazebo_ros_LIBRARIES}
+    #${rmf_plugins_common_LIBRARIES}
     ${rmf_fleet_msgs_LIBRARIES}
     ${rmf_dispenser_msgs_LIBRARIES}
 )
@@ -75,8 +70,7 @@ target_include_directories(teleport_ingestor
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     ${rclcpp_INCLUDE_DIRS}
-    #${building_sim_common_INCLUDE_DIRS}
-    #${GAZEBO_INCLUDE_DIRS}
+    #${rmf_plugins_common_INCLUDE_DIRS}
     ${rmf_fleet_msgs_INCLUDE_DIRS}
     ${rmf_dispenser_msgs_INCLUDE_DIRS}
 )
@@ -92,9 +86,7 @@ target_link_libraries(teleport_dispenser
     ${rclcpp_LIBRARIES}
     ignition-gazebo${IGN_GAZEBO_VER}::ignition-gazebo${IGN_GAZEBO_VER}
     ignition-plugin${IGN_PLUGIN_VER}::ignition-plugin${IGN_PLUGIN_VER}
-    #${building_sim_common_LIBRARIES}
-    #${GAZEBO_LIBRARIES}
-    #${gazebo_ros_LIBRARIES}
+    #${rmf_plugins_common_LIBRARIES}
     ${rmf_fleet_msgs_LIBRARIES}
     ${rmf_dispenser_msgs_LIBRARIES}
 )
@@ -104,41 +96,10 @@ target_include_directories(teleport_dispenser
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     ${rclcpp_INCLUDE_DIRS}
-    #${building_sim_common_INCLUDE_DIRS}
-    #${GAZEBO_INCLUDE_DIRS}
+    #${rmf_plugins_common_INCLUDE_DIRS}
     ${rmf_fleet_msgs_INCLUDE_DIRS}
     ${rmf_dispenser_msgs_INCLUDE_DIRS}
 )
-
-###############################
-# Readonly Plugin
-###############################
-
-#add_library(readonly SHARED ${PROJECT_SOURCE_DIR}/src/readonly.cpp)
-
-#target_link_libraries(readonly
-#  PUBLIC
-#    rmf_sim_utils
-#    ignition-gazebo${IGN_GAZEBO_VER}::ignition-gazebo${IGN_GAZEBO_VER}
-#    ignition-plugin${IGN_PLUGIN_VER}::ignition-plugin${IGN_PLUGIN_VER}
-#    #${building_sim_common_LIBRARIES}
-#    ${rmf_fleet_msgs_LIBRARIES}
-#    ${building_map_msgs_LIBRARIES}
-#    ${rclcpp_LIBRARIES}
-    #${GAZEBO_LIBRARIES}
-    #${gazebo_ros_LIBRARIES}
-#)
-
-#target_include_directories(readonly
-#  PUBLIC
-#    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-#    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-    #${building_sim_common_INCLUDE_DIRS}
-    #${GAZEBO_INCLUDE_DIRS}
-#    ${std_msgs_INCLUDE_DIRS}
-#    ${rmf_fleet_msgs_INCLUDE_DIRS}
-#    ${building_map_msgs_INCLUDE_DIRS}
-#)
 
 ###############################
 # Install Targets
@@ -148,7 +109,6 @@ install(
   TARGETS 
     teleport_dispenser
     teleport_ingestor
-#    readonly
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
