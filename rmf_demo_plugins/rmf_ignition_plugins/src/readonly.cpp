@@ -14,12 +14,18 @@
  * limitations under the License.
  *
 */
+#include <ignition/plugin/Register.hh>
 
-#include <gazebo/physics/World.hh>
+#include <ignition/gazebo/System.hh>
+#include <ignition/gazebo/Model.hh>
+#include <ignition/gazebo/components/Name.hh>
+#include <ignition/gazebo/components/Pose.hh>
+
+/*#include <gazebo/physics/World.hh>
 #include <gazebo/physics/Model.hh>
 #include <gazebo/physics/Joint.hh>
 #include <gazebo/physics/Link.hh>
-#include <gazebo_ros/node.hpp>
+#include <gazebo_ros/node.hpp> */
 
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp/logger.hpp>
@@ -28,8 +34,6 @@
 #include <unordered_map>
 #include <mutex>
 
-#include <gazebo/common/Plugin.hh>
-
 #include <rmf_fleet_msgs/msg/robot_state.hpp>
 #include <building_map_msgs/msg/building_map.hpp>
 #include <building_map_msgs/msg/level.hpp>
@@ -37,9 +41,15 @@
 
 #include <rmf_plugins_common/utils.hpp>
 
+using namespace ignition::gazebo;
 using namespace rmf_plugins_utils;
 
-class ReadonlyPlugin : public gazebo::ModelPlugin
+namespace rmf_ignition_plugins {
+
+class IGNITION_GAZEBO_VISIBLE ReadonlyPlugin
+  : public System,
+  public ISystemConfigure,
+  public ISystemPreUpdate
 {
 public:
   using BuildingMap = building_map_msgs::msg::BuildingMap;
@@ -50,13 +60,14 @@ public:
 
   ReadonlyPlugin();
   ~ReadonlyPlugin();
-
+  void Configure(const Entity& entity,
+    const std::shared_ptr<const sdf::Element>&,
+    EntityComponentManager& ecm, EventManager&) override;
+  void PreUpdate(const UpdateInfo& info, EntityComponentManager& ecm) override;
   void map_cb(const BuildingMap::SharedPtr msg);
-  void Load(gazebo::physics::ModelPtr model, sdf::ElementPtr sdf) override;
-  void OnUpdate();
 
 private:
-
+  rclcpp::Node::SharedPtr _ros_node;
   rclcpp::Logger logger();
 
   void set_traits();
@@ -67,10 +78,10 @@ private:
     const ignition::math::Vector3d& heading);
   Path compute_path(const ignition::math::Pose3d& pose);
 
-  gazebo::event::ConnectionPtr _update_connection;
-  gazebo_ros::Node::SharedPtr _ros_node;
-  gazebo::physics::ModelPtr _model;
-
+  //gazebo::event::ConnectionPtr _update_connection;
+  //gazebo_ros::Node::SharedPtr _ros_node;
+  //gazebo::physics::ModelPtr _model;
+  Entity _en;
   rclcpp::Publisher<rmf_fleet_msgs::msg::RobotState>::SharedPtr _robot_state_pub;
   rclcpp::Subscription<BuildingMap>::SharedPtr _building_map_sub;
 
@@ -115,8 +126,9 @@ private:
 };
 
 ReadonlyPlugin::ReadonlyPlugin()
+//: _dispenser_common(std::make_unique<ReadonlyCommon>())
 {
-  // We do initialization only during ::Load
+  // We do initialization only during ::Configure
 }
 
 ReadonlyPlugin::~ReadonlyPlugin()
@@ -125,14 +137,19 @@ ReadonlyPlugin::~ReadonlyPlugin()
 
 rclcpp::Logger ReadonlyPlugin::logger()
 {
-  return rclcpp::get_logger("read_only_" + _model->GetName());
+  return rclcpp::get_logger("read_only_" + _name);
 }
 
-void ReadonlyPlugin::Load(gazebo::physics::ModelPtr model, sdf::ElementPtr sdf)
+void ReadonlyPlugin::Configure(const Entity& entity,
+  const std::shared_ptr<const sdf::Element>& sdf,
+  EntityComponentManager& ecm, EventManager&)
 {
   _current_mode.mode = rmf_fleet_msgs::msg::RobotMode::MODE_MOVING;
-  _model = model;
-  _ros_node = gazebo_ros::Node::Get(sdf);
+  _en = entity;
+  _name =
+    ecm.Component<components::Name>(_en)->Data();//to check if name exists
+  RCLCPP_INFO(logger(), "Setting name to: " + _name);
+  _ros_node = std::make_shared<rclcpp::Node>(_name);//gazebo_ros::Node::Get(sdf);
 
   // Getting sdf elements
   if (sdf->HasElement("level_name"))
@@ -173,10 +190,7 @@ void ReadonlyPlugin::Load(gazebo::physics::ModelPtr model, sdf::ElementPtr sdf)
   RCLCPP_INFO(logger(),
     "Setting lane threshold: " + std::to_string(_lane_threshold));
 
-  RCLCPP_INFO(logger(), "hello i am " + model->GetName());
-
-  _update_connection = gazebo::event::Events::ConnectWorldUpdateBegin(
-    std::bind(&ReadonlyPlugin::OnUpdate, this));
+  RCLCPP_INFO(logger(), "hello i am " + _name);
 
   _robot_state_pub =
     _ros_node->create_publisher<rmf_fleet_msgs::msg::RobotState>(
@@ -191,10 +205,53 @@ void ReadonlyPlugin::Load(gazebo::physics::ModelPtr model, sdf::ElementPtr sdf)
     std::bind(&ReadonlyPlugin::map_cb, this, std::placeholders::_1));
 
   _current_task_id = "demo";
-  if (model->GetName().c_str())
-    _name = _model->GetName().c_str();
-  RCLCPP_INFO(logger(), "Setting name to: " + _name);
+}
 
+void ReadonlyPlugin::PreUpdate(const UpdateInfo& info, EntityComponentManager& ecm)
+{
+  _update_count++;
+  //const auto& world = _model->GetWorld();
+  auto pose = ecm.Component<components::Pose>(_en)->Data();//_model->WorldPose();
+  //const double time = world->SimTime().Double();
+
+  const double time =// to check if actually double
+    std::chrono::duration_cast<std::chrono::seconds>(info.simTime).count();
+
+  if (time - _last_update_time > _update_threshold) // todo: be smarter, use elapsed sim time
+  {
+    initialize_start(pose);
+
+    _last_update_time = time;
+    const int32_t t_sec = static_cast<int32_t>(time);
+    const uint32_t t_nsec =
+      static_cast<uint32_t>((time-static_cast<double>(t_sec)) *1e9);
+    const rclcpp::Time now{t_sec, t_nsec, RCL_ROS_TIME};
+
+    _robot_state_msg.name = _name;//_model->GetName();
+    _robot_state_msg.model = "";
+    _robot_state_msg.task_id = _current_task_id;
+    _robot_state_msg.mode = _current_mode;
+    _robot_state_msg.battery_percent = 98.0;
+
+    _robot_state_msg.location.x = pose.Pos().X();
+    _robot_state_msg.location.y = pose.Pos().Y();
+    _robot_state_msg.location.yaw = pose.Rot().Yaw();
+    _robot_state_msg.location.t = now;
+    _robot_state_msg.location.level_name = _level_name;
+
+    if (_initialized_start)
+    {
+      if (compute_ds(pose, _next_wp[0]) <= _waypoint_threshold)
+      {
+        _start_wp = _next_wp[0];
+        RCLCPP_INFO(logger(), "Reached waypoint [%d,%s]",
+          _next_wp[0], _graph.vertices[_next_wp[0]].name.c_str());
+      }
+      _robot_state_msg.path = compute_path(pose);
+    }
+
+    _robot_state_pub->publish(_robot_state_msg);
+  }
 }
 
 void ReadonlyPlugin::map_cb(const BuildingMap::SharedPtr msg)
@@ -290,7 +347,6 @@ void ReadonlyPlugin::initialize_graph()
   }
 
   _initialized_graph = true;
-
 }
 
 double ReadonlyPlugin::compute_ds(
@@ -355,6 +411,7 @@ void ReadonlyPlugin::initialize_start(const ignition::math::Pose3d& pose)
       "Start waypoint [%s] not found in nav graph", _start_wp_name.c_str());
   }
 }
+
 std::size_t ReadonlyPlugin::get_next_waypoint(const std::size_t start_wp,
   const ignition::math::Vector3d& heading)
 {
@@ -466,49 +523,14 @@ ReadonlyPlugin::Path ReadonlyPlugin::compute_path(
 
 }
 
-void ReadonlyPlugin::OnUpdate()
-{
-  _update_count++;
-  const auto& world = _model->GetWorld();
-  auto pose = _model->WorldPose();
-  const double time = world->SimTime().Double();
 
-  if (time - _last_update_time > _update_threshold) // todo: be smarter, use elapsed sim time
-  {
-    initialize_start(pose);
+IGNITION_ADD_PLUGIN(
+  ReadonlyPlugin,
+  System,
+  ReadonlyPlugin::ISystemConfigure,
+  ReadonlyPlugin::ISystemPreUpdate)
 
-    _last_update_time = time;
-    const int32_t t_sec = static_cast<int32_t>(time);
-    const uint32_t t_nsec =
-      static_cast<uint32_t>((time-static_cast<double>(t_sec)) *1e9);
-    const rclcpp::Time now{t_sec, t_nsec, RCL_ROS_TIME};
+// TODO would prefer namespaced
+IGNITION_ADD_PLUGIN_ALIAS(ReadonlyPlugin, "readonly")
 
-    _robot_state_msg.name = _model->GetName();
-    _robot_state_msg.model = "";
-    _robot_state_msg.task_id = _current_task_id;
-    _robot_state_msg.mode = _current_mode;
-    _robot_state_msg.battery_percent = 98.0;
-
-    _robot_state_msg.location.x = pose.Pos().X();
-    _robot_state_msg.location.y = pose.Pos().Y();
-    _robot_state_msg.location.yaw = pose.Rot().Yaw();
-    _robot_state_msg.location.t = now;
-    _robot_state_msg.location.level_name = _level_name;
-
-    if (_initialized_start)
-    {
-      if (compute_ds(pose, _next_wp[0]) <= _waypoint_threshold)
-      {
-        _start_wp = _next_wp[0];
-        RCLCPP_INFO(logger(), "Reached waypoint [%d,%s]",
-          _next_wp[0], _graph.vertices[_next_wp[0]].name.c_str());
-      }
-      _robot_state_msg.path = compute_path(pose);
-    }
-
-    _robot_state_pub->publish(_robot_state_msg);
-  }
-
-}
-
-GZ_REGISTER_MODEL_PLUGIN(ReadonlyPlugin)
+} // namespace rmf_ignition_plugins

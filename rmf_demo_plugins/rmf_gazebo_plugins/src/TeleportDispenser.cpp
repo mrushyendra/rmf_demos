@@ -25,16 +25,16 @@
 
 #include <ignition/math/Vector3.hh>
 
-#include "utils.hpp"
-
 #include <rclcpp/rclcpp.hpp>
 
 #include <rmf_dispenser_msgs/msg/dispenser_state.hpp>
 #include <rmf_dispenser_msgs/msg/dispenser_result.hpp>
 
 #include <rmf_plugins_common/dispenser_common.hpp>
+#include <rmf_plugins_common/utils.hpp>
 
 using namespace rmf_dispenser_common;
+using namespace rmf_plugins_utils;
 
 namespace rmf_gazebo_plugins {
 
