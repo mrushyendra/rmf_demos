@@ -225,6 +225,7 @@ void ReadonlyPlugin::map_cb(const BuildingMap::SharedPtr msg)
         RCLCPP_INFO(logger(), "Graph index [%d] containts [%d] waypoints",
           _nav_graph_index,
           level.nav_graphs[_nav_graph_index].vertices.size());
+          std::cout << "initializing graph " << std::endl;
         initialize_graph();
       }
       else

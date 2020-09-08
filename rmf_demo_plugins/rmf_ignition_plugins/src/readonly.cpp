@@ -211,6 +211,7 @@ void ReadonlyPlugin::PreUpdate(const UpdateInfo& info, EntityComponentManager& e
 {
   _update_count++;
   //const auto& world = _model->GetWorld();
+  rclcpp::spin_some(_ros_node);//_ingestor_common->ros_node);
   auto pose = ecm.Component<components::Pose>(_en)->Data();//_model->WorldPose();
   //const double time = world->SimTime().Double();
 
@@ -220,7 +221,7 @@ void ReadonlyPlugin::PreUpdate(const UpdateInfo& info, EntityComponentManager& e
   if (time - _last_update_time > _update_threshold) // todo: be smarter, use elapsed sim time
   {
     initialize_start(pose);
-
+    std::cout << "initialized: " << _initialized_start << std::endl;
     _last_update_time = time;
     const int32_t t_sec = static_cast<int32_t>(time);
     const uint32_t t_nsec =
@@ -247,9 +248,12 @@ void ReadonlyPlugin::PreUpdate(const UpdateInfo& info, EntityComponentManager& e
         RCLCPP_INFO(logger(), "Reached waypoint [%d,%s]",
           _next_wp[0], _graph.vertices[_next_wp[0]].name.c_str());
       }
+      std::cout << "Computing path: " << std::endl;
       _robot_state_msg.path = compute_path(pose);
+      std::cout << _robot_state_msg.path.size() << std::endl;
     }
 
+    std::cout << "Publishing state: " << _robot_state_msg.name << " " << _robot_state_msg.location.x << std::endl;
     _robot_state_pub->publish(_robot_state_msg);
   }
 }
@@ -282,6 +286,7 @@ void ReadonlyPlugin::map_cb(const BuildingMap::SharedPtr msg)
         RCLCPP_INFO(logger(), "Graph index [%d] containts [%d] waypoints",
           _nav_graph_index,
           level.nav_graphs[_nav_graph_index].vertices.size());
+        std::cout << "initializing graph " << std::endl;
         initialize_graph();
       }
       else
@@ -371,9 +376,11 @@ void ReadonlyPlugin::initialize_start(const ignition::math::Pose3d& pose)
   if (_initialized_start)
     return;
 
+  std::cout << "trying to initialize " << std::endl;
   if (!_initialized_graph)
     return;
 
+  std::cout << "initializing start..................." << std::endl;
   bool found = false;
   for (std::size_t i = 0; i < _graph.vertices.size(); i++)
   {
@@ -522,7 +529,6 @@ ReadonlyPlugin::Path ReadonlyPlugin::compute_path(
   return path;
 
 }
-
 
 IGNITION_ADD_PLUGIN(
   ReadonlyPlugin,

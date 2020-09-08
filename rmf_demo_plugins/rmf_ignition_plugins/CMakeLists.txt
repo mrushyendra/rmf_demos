@@ -139,6 +139,7 @@ install(
   TARGETS 
     teleport_dispenser
     teleport_ingestor
+    readonly
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
