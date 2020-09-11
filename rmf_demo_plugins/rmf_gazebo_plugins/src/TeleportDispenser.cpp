@@ -59,31 +59,27 @@ private:
   ignition::math::AxisAlignedBox _dispenser_vicinity_box;
   #endif
 
-  bool find_nearest_model_name(
+  bool find_nearest_model(
     const std::vector<SimObj>& models,
     SimObj& nearest_model_name) const;
-    //const std::vector<gazebo::physics::ModelPtr>& models,
-    //std::string& nearest_model_name) const;
   bool dispense_on_nearest_robot(const std::string& fleet_name);
   void fill_dispenser();
   void create_dispenser_bounding_box();
   void on_update();
+  void fill_robot_model_list(std::unordered_map<std::string, rmf_fleet_msgs::msg::FleetState::UniquePtr>::iterator fleet_state_it, std::vector<SimObj>& robot_model_list);
+  void place_on_entity(const SimObj& to_move);
 };
 
-bool TeleportDispenserPlugin::find_nearest_model_name(
-  //const std::vector<gazebo::physics::ModelPtr>& models,
+bool TeleportDispenserPlugin::find_nearest_model(
   const std::vector<SimObj>& models,
   SimObj& nearest_model_name) const
-  //std::string& nearest_model_name) const
 {
   double nearest_dist = 1e6;
   bool found = false;
 
-  //for (const auto& m : models)
   for (const SimObj& sim_obj : models)
   {
     const std::string& name = sim_obj.name;
-    //if (!m || m->GetName() == _dispenser_common->guid)
     if(name == _dispenser_common->guid)
       continue;
 
@@ -93,50 +89,26 @@ bool TeleportDispenserPlugin::find_nearest_model_name(
     if (dist < nearest_dist)
     {
       nearest_dist = dist;
-      nearest_model_name = sim_obj;//m->GetName();
+      nearest_model_name = sim_obj;
       found = true;
     }
   }
   return found;
 }
 
-bool TeleportDispenserPlugin::dispense_on_nearest_robot(
-  const std::string& fleet_name)
+void TeleportDispenserPlugin::place_on_entity(const SimObj& to_move)
 {
-  if (!_item_model)
-    return false;
+  _item_model->PlaceOnEntity(to_move.name);
+}
 
-  const auto fleet_state_it = _dispenser_common->fleet_states.find(fleet_name);
-  if (fleet_state_it == _dispenser_common->fleet_states.end())
-  {
-    RCLCPP_WARN(_dispenser_common->ros_node->get_logger(),
-      "No such fleet: [%s]", fleet_name.c_str());
-    return false;
-  }
-
-  //std::vector<gazebo::physics::ModelPtr> robot_models;
-  std::vector<SimObj> robot_models;
+void TeleportDispenserPlugin::fill_robot_model_list(std::unordered_map<std::string, rmf_fleet_msgs::msg::FleetState::UniquePtr>::iterator fleet_state_it, std::vector<SimObj>& robot_model_list)
+{
   for (const auto& rs : fleet_state_it->second->robots)
   {
     const auto r_model = _world->ModelByName(rs.name);
     if (r_model && !r_model->IsStatic())
-      //robot_models.push_back(r_model);
-      robot_models.push_back(SimObj(0,r_model->GetName()));
+      robot_model_list.push_back(SimObj(0,r_model->GetName()));
   }
-
-  //std::string nearest_robot_model_name;
-  SimObj nearest_robot_model_name;
-  if (!find_nearest_model_name(
-      robot_models, nearest_robot_model_name))
-  {
-    RCLCPP_WARN(_dispenser_common->ros_node->get_logger(),
-      "No near robots of fleet [%s] found.", fleet_name.c_str());
-    return false;
-  }
-  _item_model->PlaceOnEntity(nearest_robot_model_name.name);
-  //_item_model->PlaceOnEntity(nearest_robot_model_name);
-  _dispenser_common->dispenser_filled = false;
-  return true;
 }
 
 // Searches vicinity of Dispenser for closest valid item. If found, _item_model is set to the newly found item
@@ -187,16 +159,19 @@ void TeleportDispenserPlugin::on_update()
 {
   _dispenser_common->sim_time = _world->SimTime().Double();
 
-  std::function<bool(const std::string&)> dispense_onto_robot_cb =
-    std::bind(&TeleportDispenserPlugin::dispense_on_nearest_robot,
-      this, std::placeholders::_1);
-
   std::function<bool(void)> check_filled_cb = [&]()
     {
       return _model->BoundingBox().Contains(_item_model->WorldPose().Pos());
     };
 
-  _dispenser_common->on_update_old(dispense_onto_robot_cb, check_filled_cb);
+  std::function<void(std::unordered_map<std::string, rmf_fleet_msgs::msg::FleetState::UniquePtr>::iterator, std::vector<rmf_plugins_utils::SimObj>&)> fill_robot_model_list_cb =
+    std::bind(&TeleportDispenserPlugin::fill_robot_model_list, this, std::placeholders::_1, std::placeholders::_2);
+  std::function<bool(const std::vector<rmf_plugins_utils::SimObj>&, SimObj&)> find_nearest_model_cb =
+    std::bind(&TeleportDispenserPlugin::find_nearest_model, this, std::placeholders::_1, std::placeholders::_2);
+  std::function<void(const SimObj&)> place_on_entity_cb =
+    std::bind(&TeleportDispenserPlugin::place_on_entity, this, std::placeholders::_1);
+
+  _dispenser_common->on_update(fill_robot_model_list_cb, find_nearest_model_cb, place_on_entity_cb, check_filled_cb);
 }
 
 TeleportDispenserPlugin::TeleportDispenserPlugin()

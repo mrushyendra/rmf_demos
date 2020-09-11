@@ -65,9 +65,6 @@ public:
     std::function<bool(const std::vector<rmf_plugins_utils::SimObj>&, rmf_plugins_utils::SimObj&)> find_nearest_model_cb,
     std::function<void(const rmf_plugins_utils::SimObj&)> place_on_entity_cb,
     std::function<bool(void)> check_filled_cb);
-  void on_update_old(
-    std::function<bool(const std::string&)> dispense_onto_robot_cb,
-    std::function<bool(void)> check_filled_cb);
   void init_ros_node(const rclcpp::Node::SharedPtr node);
 
 private:
