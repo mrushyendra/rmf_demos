@@ -7,6 +7,21 @@
 
 namespace rmf_plugins_utils {
 
+struct SimObj {
+  int Simulator;
+  uint64_t entity;
+  std::string name;
+
+  SimObj(int simulator_type, uint64_t en) : Simulator(simulator_type), entity(en){
+    name = "";
+  }
+  SimObj(){
+    int simulator = 1;
+    entity = 0;
+    name = "";
+  }
+};
+
 // TODO(MXG): Refactor the use of this function to replace it with
 // compute_desired_rate_of_change()
 double compute_ds(
