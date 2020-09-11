@@ -1,7 +1,6 @@
 #include <memory>
 
 #include <rmf_plugins_common/dispenser_common.hpp>
-#include <rmf_plugins_common/utils.hpp>
 
 namespace rmf_dispenser_common {
 
@@ -60,7 +59,89 @@ void TeleportDispenserCommon::try_refill_dispenser(
   }
 }
 
+bool TeleportDispenserCommon::dispense_on_nearest_robot(
+  std::function<void(std::unordered_map<std::string, FleetState::UniquePtr>::iterator, std::vector<rmf_plugins_utils::SimObj>&)> fill_robot_model_list_cb,
+  std::function<bool(const std::vector<rmf_plugins_utils::SimObj>&, rmf_plugins_utils::SimObj&)> find_nearest_model_cb,
+  std::function<void(const rmf_plugins_utils::SimObj&)> place_on_entity_cb,
+  const std::string& fleet_name)
+{
+  if (!dispenser_filled)
+    return false;
+
+  //const auto fleet_state_it = fleet_states.find(fleet_name);
+  std::unordered_map<std::string, FleetState::UniquePtr>::iterator fleet_state_it = fleet_states.find(fleet_name);
+  if (fleet_state_it == fleet_states.end())
+  {
+    RCLCPP_WARN(ros_node->get_logger(),
+      "No such fleet: [%s]", fleet_name.c_str());
+    return false;
+  }
+
+  std::vector<rmf_plugins_utils::SimObj> robot_model_list;
+  fill_robot_model_list_cb(fleet_state_it, robot_model_list);
+
+  rmf_plugins_utils::SimObj robot_model;
+  if (!find_nearest_model_cb(robot_model_list, robot_model))
+  {
+    RCLCPP_WARN(ros_node->get_logger(),
+      "No nearby robots of fleet [%s] found.", fleet_name.c_str());
+    return false;
+  }
+  place_on_entity_cb(robot_model);
+  dispenser_filled = false; // Assumes Dispenser is configured to only dispense a single object
+  return true;
+}
+
 void TeleportDispenserCommon::on_update(
+  std::function<void(std::unordered_map<std::string, FleetState::UniquePtr>::iterator, std::vector<rmf_plugins_utils::SimObj>&)> fill_robot_model_list_cb,
+  std::function<bool(const std::vector<rmf_plugins_utils::SimObj>&, rmf_plugins_utils::SimObj&)> find_nearest_model_cb,
+  std::function<void(const rmf_plugins_utils::SimObj&)> place_on_entity_cb,
+  std::function<bool(void)> check_filled_cb)
+{
+  // `_dispense` is set to true if the dispenser plugin node has received a valid DispenserRequest
+  if (dispense)
+  {
+    send_dispenser_response(DispenserResult::ACKNOWLEDGED);
+
+    if (dispenser_filled)
+    {
+      RCLCPP_INFO(ros_node->get_logger(), "Dispensing item");
+      bool res = dispense_on_nearest_robot(fill_robot_model_list_cb, find_nearest_model_cb, place_on_entity_cb, latest.transporter_type);//dispense_onto_robot_cb(latest.transporter_type);
+      if (res)
+      {
+        send_dispenser_response(DispenserResult::SUCCESS);
+        RCLCPP_INFO(ros_node->get_logger(), "Success");
+      }
+      else
+      {
+        send_dispenser_response(DispenserResult::FAILED);
+        RCLCPP_WARN(ros_node->get_logger(), "Unable to dispense item");
+      }
+    }
+    else
+    {
+      RCLCPP_WARN(ros_node->get_logger(),
+        "No item to dispense: [%s]", latest.request_guid);
+      send_dispenser_response(DispenserResult::FAILED);
+    }
+    dispense = false;
+  }
+
+  constexpr double interval = 2.0;
+  if (sim_time - last_pub_time >= interval)
+  {
+    last_pub_time = sim_time;
+    const auto now = rmf_plugins_utils::simulation_now(sim_time);
+
+    current_state.time = now;
+    current_state.mode = DispenserState::IDLE;
+    _state_pub->publish(current_state);
+  }
+
+  try_refill_dispenser(check_filled_cb);
+}
+
+void TeleportDispenserCommon::on_update_old(
   std::function<bool(const std::string&)> dispense_onto_robot_cb,
   std::function<bool(void)> check_filled_cb)
 {

@@ -15,10 +15,15 @@ struct SimObj {
   SimObj(int simulator_type, uint64_t en) : Simulator(simulator_type), entity(en){
     name = "";
   }
+  SimObj(int simulator_type, std::string nm) : Simulator(simulator_type), name(nm){
+    entity = 0;
+  }
   SimObj(){
     int simulator = 1;
     entity = 0;
     name = "";
+  }
+  ~SimObj(){
   }
 };
 

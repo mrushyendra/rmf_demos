@@ -88,6 +88,7 @@ ament_target_dependencies(teleport_dispenser
 
 target_include_directories(teleport_dispenser
   PUBLIC
+    rmf_fleet_msgs
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
