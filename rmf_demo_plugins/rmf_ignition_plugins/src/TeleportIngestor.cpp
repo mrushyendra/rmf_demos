@@ -71,19 +71,15 @@ private:
 
   rclcpp::Node::SharedPtr _ros_node;
 
-  bool find_nearest_model(
-    const EntityComponentManager& ecm,
+  bool find_nearest_model(const EntityComponentManager& ecm,
     const std::vector<SimEntity>& robot_model_entities,
     SimEntity& robot_entity) const;
-  bool get_payload_model(
-    const EntityComponentManager& ecm,
+  bool get_payload_model(const EntityComponentManager& ecm,
     const SimEntity& robot_sim_entity,
     Entity& payload_entity);
   void fill_robot_model_list(EntityComponentManager& ecm,
     FleetStateIt fleet_state_it, std::vector<SimEntity>& robot_model_list);
   void transport_model(EntityComponentManager& ecm);
-  //bool ingest_from_nearest_robot(EntityComponentManager& ecm,
-  //  const std::string& fleet_name);
   void send_ingested_item_home(EntityComponentManager& ecm);
 };
 
@@ -99,6 +95,8 @@ bool TeleportIngestorPlugin::find_nearest_model(
 
   for (const auto& sim_obj : robot_model_entities)
   {
+    // If `models` has been generated with `fill_robot_model_list`, then it is
+    // guaranteed to have a valid entity field
     Entity en = sim_obj.entity;
     std::string name = ecm.Component<components::Name>(en)->Data();
     if (name == _ingestor_common->_guid)
@@ -116,6 +114,7 @@ bool TeleportIngestorPlugin::find_nearest_model(
   return found;
 }
 
+// Identifies item to ingest and assigns it to `payload_entity`
 bool TeleportIngestorPlugin::get_payload_model(
   const EntityComponentManager& ecm,
   const SimEntity& robot_sim_entity,
@@ -171,6 +170,7 @@ void TeleportIngestorPlugin::fill_robot_model_list(EntityComponentManager& ecm,
   }
 }
 
+// Moves the identified item to ingest from its current position to the ingestor
 void TeleportIngestorPlugin::transport_model(EntityComponentManager& ecm)
 {
   auto cmd = ecm.Component<components::WorldPoseCmd>(_ingested_entity);
@@ -235,7 +235,8 @@ void TeleportIngestorPlugin::Configure(const Entity& entity,
           << std::endl;
   _ros_node = std::make_shared<rclcpp::Node>(_ingestor_common->_guid);
   _ingestor_common->init_ros_node(_ros_node);
-  RCLCPP_INFO(_ingestor_common->ros_node->get_logger(), "Started node...");
+  RCLCPP_INFO(_ingestor_common->ros_node->get_logger(),
+    "Started TeleportIngestorPlugin node...");
 
   // Keep track of all the non-static models
   ecm.Each<components::Model, components::Name, components::Pose,
@@ -264,10 +265,6 @@ void TeleportIngestorPlugin::PreUpdate(const UpdateInfo& info,
   // TODO parallel thread executor?
   rclcpp::spin_some(_ingestor_common->ros_node);
 
-  /*std::function<bool(const std::string&)> ingest_fn_cb =
-    std::bind(&TeleportIngestorPlugin::ingest_from_nearest_robot,
-      this, std::ref(ecm), std::placeholders::_1);*/
-
   std::function<void(void)> send_ingested_item_home_cb =
     std::bind(&TeleportIngestorPlugin::send_ingested_item_home,
       this, std::ref(ecm));
@@ -290,8 +287,8 @@ void TeleportIngestorPlugin::PreUpdate(const UpdateInfo& info,
     std::bind(&TeleportIngestorPlugin::transport_model, this,
       std::ref(ecm));
 
-  _ingestor_common->on_update(fill_robot_model_list_cb, find_nearest_model_cb, get_payload_model_cb, transport_model_cb, send_ingested_item_home_cb);
-  //_ingestor_common->on_update_old(ingest_fn_cb, send_ingested_item_home_cb);
+  _ingestor_common->on_update(fill_robot_model_list_cb, find_nearest_model_cb,
+    get_payload_model_cb, transport_model_cb, send_ingested_item_home_cb);
 }
 
 IGNITION_ADD_PLUGIN(

@@ -72,8 +72,6 @@ public:
   void send_ingestor_response(uint8_t status) const;
   void fleet_state_cb(FleetState::UniquePtr msg);
   void ingestor_request_cb(IngestorRequest::UniquePtr msg);
-  void on_update_old(std::function<bool(const std::string&)> ingest_from_robot_cb,
-    std::function<void(void)> send_ingested_item_home_cb);
   void on_update(
     std::function<void(FleetStateIt,
     std::vector<rmf_plugins_utils::SimEntity>&)> fill_robot_model_list_cb,

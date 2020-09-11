@@ -100,60 +100,9 @@ void TeleportIngestorCommon::on_update(
     if (!ingestor_filled)
     {
       RCLCPP_INFO(ros_node->get_logger(), "Ingesting item");
-      bool res = ingest_from_nearest_robot(fill_robot_model_list_cb, find_nearest_model_cb, get_payload_model_cb, transport_model_cb, latest.transporter_type);
-      if (res)
-      {
-        send_ingestor_response(IngestorResult::SUCCESS);
-        last_ingested_time = sim_time;
-        RCLCPP_INFO(ros_node->get_logger(), "Success");
-      }
-      else
-      {
-        send_ingestor_response(IngestorResult::FAILED);
-        RCLCPP_WARN(ros_node->get_logger(), "Unable to dispense item");
-      }
-    }
-    else
-    {
-      RCLCPP_WARN(ros_node->get_logger(),
-        "No item to ingest: [%s]", latest.request_guid);
-      send_ingestor_response(IngestorResult::FAILED);
-    }
-    ingest = false;
-  }
-
-  constexpr double interval = 2.0;
-  if (sim_time - last_pub_time >= interval)
-  {
-    last_pub_time = sim_time;
-    const auto now = rmf_plugins_utils::simulation_now(sim_time);
-
-    current_state.time = now;
-    current_state.mode = IngestorState::IDLE;
-    _state_pub->publish(current_state);
-  }
-
-  // Periodically try to teleport ingested item back to original location
-  constexpr double return_interval = 5.0;
-  if (sim_time - last_ingested_time >=
-    return_interval && ingestor_filled)
-  {
-    send_ingested_item_home_cb();
-  }
-}
-
-void TeleportIngestorCommon::on_update_old(
-  std::function<bool(const std::string&)> ingest_from_robot_cb,
-  std::function<void(void)> send_ingested_item_home_cb)
-{
-  if (ingest)
-  {
-    send_ingestor_response(IngestorResult::ACKNOWLEDGED);
-
-    if (!ingestor_filled)
-    {
-      RCLCPP_INFO(ros_node->get_logger(), "Ingesting item");
-      bool res = ingest_from_robot_cb(latest.transporter_type);
+      bool res = ingest_from_nearest_robot(fill_robot_model_list_cb,
+          find_nearest_model_cb, get_payload_model_cb,
+          transport_model_cb, latest.transporter_type);
       if (res)
       {
         send_ingestor_response(IngestorResult::SUCCESS);
