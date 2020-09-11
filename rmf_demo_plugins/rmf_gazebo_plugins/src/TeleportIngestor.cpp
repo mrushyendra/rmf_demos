@@ -61,6 +61,7 @@ private:
   bool get_payload_model(
     const gazebo::physics::ModelPtr& robot_model,
     gazebo::physics::ModelPtr& payload_model) const;
+  void transport_model();
   bool ingest_from_nearest_robot(const std::string& fleet_name);
   void send_ingested_item_home();
   void on_update();
@@ -136,6 +137,11 @@ bool TeleportIngestorPlugin::get_payload_model(
   return found;
 }
 
+void TeleportIngestorPlugin::transport_model()
+{
+  _ingested_model->SetWorldPose(_model->WorldPose());
+}
+
 bool TeleportIngestorPlugin::ingest_from_nearest_robot(
   const std::string& fleet_name)
 {
@@ -172,7 +178,8 @@ bool TeleportIngestorPlugin::ingest_from_nearest_robot(
     _ingested_model = nullptr;
     return false;
   }
-  _ingested_model->SetWorldPose(_model->WorldPose());
+
+  transport_model();
   _ingestor_common->ingestor_filled = true;
   return true;
 }
@@ -204,7 +211,7 @@ void TeleportIngestorPlugin::on_update()
     std::bind(&TeleportIngestorPlugin::send_ingested_item_home,
       this);
 
-  _ingestor_common->on_update(ingest_fn_cb, send_ingested_item_home_cb);
+  _ingestor_common->on_update_old(ingest_fn_cb, send_ingested_item_home_cb);
 }
 
 void TeleportIngestorPlugin::Load(gazebo::physics::ModelPtr _parent,

@@ -32,6 +32,10 @@
 #include <rmf_ingestor_msgs/msg/ingestor_result.hpp>
 #include <rmf_ingestor_msgs/msg/ingestor_request.hpp>
 
+#include <rmf_plugins_common/utils.hpp>
+
+using namespace rmf_plugins_utils;
+
 namespace rmf_ingestor_common {
 
 class TeleportIngestorCommon
@@ -39,6 +43,8 @@ class TeleportIngestorCommon
 public:
 
   using FleetState = rmf_fleet_msgs::msg::FleetState;
+  using FleetStateIt =
+    std::unordered_map<std::string, FleetState::UniquePtr>::iterator;
   using IngestorState = rmf_ingestor_msgs::msg::IngestorState;
   using IngestorRequest = rmf_ingestor_msgs::msg::IngestorRequest;
   using IngestorResult = rmf_ingestor_msgs::msg::IngestorResult;
@@ -66,7 +72,15 @@ public:
   void send_ingestor_response(uint8_t status) const;
   void fleet_state_cb(FleetState::UniquePtr msg);
   void ingestor_request_cb(IngestorRequest::UniquePtr msg);
-  void on_update(std::function<bool(const std::string&)> ingest_from_robot_cb,
+  void on_update_old(std::function<bool(const std::string&)> ingest_from_robot_cb,
+    std::function<void(void)> send_ingested_item_home_cb);
+  void on_update(
+    std::function<void(FleetStateIt,
+    std::vector<rmf_plugins_utils::SimEntity>&)> fill_robot_model_list_cb,
+    std::function<bool(const std::vector<rmf_plugins_utils::SimEntity>&,
+    rmf_plugins_utils::SimEntity&)> find_nearest_model_cb,
+    std::function<bool(const SimEntity&)> get_payload_model_cb,
+    std::function<void()> transport_model_cb,
     std::function<void(void)> send_ingested_item_home_cb);
   void init_ros_node(const rclcpp::Node::SharedPtr node);
 
@@ -76,6 +90,15 @@ private:
   rclcpp::Subscription<IngestorRequest>::SharedPtr _request_sub;
   rclcpp::Publisher<IngestorResult>::SharedPtr _result_pub;
   std::unordered_map<std::string, bool> _past_request_guids;
+
+  bool ingest_from_nearest_robot(
+    std::function<void(FleetStateIt,
+    std::vector<rmf_plugins_utils::SimEntity>&)> fill_robot_model_list_cb,
+    std::function<bool(const std::vector<rmf_plugins_utils::SimEntity>&,
+    rmf_plugins_utils::SimEntity&)> find_nearest_model_cb,
+    std::function<bool(const SimEntity&)> get_payload_model_cb,
+    std::function<void()> transport_model_cb,
+    const std::string& fleet_name);
 };
 
 } // namespace rmf_ingestor_common
