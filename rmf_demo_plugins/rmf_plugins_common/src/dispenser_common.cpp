@@ -60,16 +60,17 @@ void TeleportDispenserCommon::try_refill_dispenser(
 }
 
 bool TeleportDispenserCommon::dispense_on_nearest_robot(
-  std::function<void(std::unordered_map<std::string, FleetState::UniquePtr>::iterator, std::vector<rmf_plugins_utils::SimObj>&)> fill_robot_model_list_cb,
-  std::function<bool(const std::vector<rmf_plugins_utils::SimObj>&, rmf_plugins_utils::SimObj&)> find_nearest_model_cb,
-  std::function<void(const rmf_plugins_utils::SimObj&)> place_on_entity_cb,
+  std::function<void(FleetStateIt,
+  std::vector<rmf_plugins_utils::SimEntity>&)> fill_robot_model_list_cb,
+  std::function<bool(const std::vector<rmf_plugins_utils::SimEntity>&,
+  rmf_plugins_utils::SimEntity&)> find_nearest_model_cb,
+  std::function<void(const rmf_plugins_utils::SimEntity&)> place_on_entity_cb,
   const std::string& fleet_name)
 {
   if (!dispenser_filled)
     return false;
 
   const auto fleet_state_it = fleet_states.find(fleet_name);
-  //std::unordered_map<std::string, FleetState::UniquePtr>::iterator fleet_state_it = fleet_states.find(fleet_name);
   if (fleet_state_it == fleet_states.end())
   {
     RCLCPP_WARN(ros_node->get_logger(),
@@ -77,10 +78,10 @@ bool TeleportDispenserCommon::dispense_on_nearest_robot(
     return false;
   }
 
-  std::vector<rmf_plugins_utils::SimObj> robot_model_list;
+  std::vector<rmf_plugins_utils::SimEntity> robot_model_list;
   fill_robot_model_list_cb(fleet_state_it, robot_model_list);
 
-  rmf_plugins_utils::SimObj robot_model;
+  rmf_plugins_utils::SimEntity robot_model;
   if (!find_nearest_model_cb(robot_model_list, robot_model))
   {
     RCLCPP_WARN(ros_node->get_logger(),
@@ -93,9 +94,11 @@ bool TeleportDispenserCommon::dispense_on_nearest_robot(
 }
 
 void TeleportDispenserCommon::on_update(
-  std::function<void(std::unordered_map<std::string, FleetState::UniquePtr>::iterator, std::vector<rmf_plugins_utils::SimObj>&)> fill_robot_model_list_cb,
-  std::function<bool(const std::vector<rmf_plugins_utils::SimObj>&, rmf_plugins_utils::SimObj&)> find_nearest_model_cb,
-  std::function<void(const rmf_plugins_utils::SimObj&)> place_on_entity_cb,
+  std::function<void(FleetStateIt,
+  std::vector<rmf_plugins_utils::SimEntity>&)> fill_robot_model_list_cb,
+  std::function<bool(const std::vector<rmf_plugins_utils::SimEntity>&,
+  rmf_plugins_utils::SimEntity&)> find_nearest_model_cb,
+  std::function<void(const rmf_plugins_utils::SimEntity&)> place_on_entity_cb,
   std::function<bool(void)> check_filled_cb)
 {
   // `_dispense` is set to true if the dispenser plugin node has received a valid DispenserRequest
@@ -106,7 +109,9 @@ void TeleportDispenserCommon::on_update(
     if (dispenser_filled)
     {
       RCLCPP_INFO(ros_node->get_logger(), "Dispensing item");
-      bool res = dispense_on_nearest_robot(fill_robot_model_list_cb, find_nearest_model_cb, place_on_entity_cb, latest.transporter_type);
+      bool res = dispense_on_nearest_robot(fill_robot_model_list_cb,
+          find_nearest_model_cb, place_on_entity_cb,
+          latest.transporter_type);
       if (res)
       {
         send_dispenser_response(DispenserResult::SUCCESS);

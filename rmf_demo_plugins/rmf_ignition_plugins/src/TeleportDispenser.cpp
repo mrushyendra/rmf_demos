@@ -57,7 +57,9 @@ public:
     EntityComponentManager& ecm, EventManager&) override;
   void PreUpdate(const UpdateInfo& info, EntityComponentManager& ecm) override;
 
-  //using FleetState = rmf_fleet_msgs::msg::FleetState;
+  using FleetState = rmf_fleet_msgs::msg::FleetState;
+  using FleetStateIt =
+    std::unordered_map<std::string, FleetState::UniquePtr>::iterator;
 
 private:
   // Stores params representing state of Dispenser, and handles all message pub/sub
@@ -73,11 +75,11 @@ private:
 
   bool find_nearest_model(
     EntityComponentManager& ecm,
-    const std::vector<SimObj>& robot_model_entities,
-    SimObj& sim_obj) const;
+    const std::vector<SimEntity>& entities, SimEntity& sim_obj) const;
   void place_on_entity(EntityComponentManager& ecm,
-    const SimObj& obj, const Entity& to_move);
-  void fill_robot_model_list(EntityComponentManager& ecm, std::unordered_map<std::string, rmf_fleet_msgs::msg::FleetState::UniquePtr>::iterator fleet_state_it, std::vector<SimObj>& robot_model_list);
+    const SimEntity& obj, const Entity& to_move);
+  void fill_robot_model_list(EntityComponentManager& ecm,
+    FleetStateIt fleet_state_it, std::vector<SimEntity>& robot_model_list);
   bool dispense_on_nearest_robot(EntityComponentManager& ecm,
     const std::string& fleet_name);
   void fill_dispenser(EntityComponentManager& ecm);
@@ -96,15 +98,15 @@ TeleportDispenserPlugin::~TeleportDispenserPlugin()
 
 bool TeleportDispenserPlugin::find_nearest_model(
   EntityComponentManager& ecm,
-  const std::vector<SimObj>& robot_model_entities,
-  SimObj& robot_entity) const
+  const std::vector<SimEntity>& entities,
+  SimEntity& robot_entity) const
 {
   double nearest_dist = 1e6;
   bool found = false;
   const auto dispenser_pos =
     ecm.Component<components::Pose>(_dispenser)->Data().Pos();
 
-  for (const auto& sim_obj : robot_model_entities)
+  for (const auto& sim_obj : entities)
   {
     Entity en = sim_obj.entity;
     std::string name = ecm.Component<components::Name>(en)->Data();
@@ -125,7 +127,7 @@ bool TeleportDispenserPlugin::find_nearest_model(
 
 // Move entity `to_move` onto `base`
 void TeleportDispenserPlugin::place_on_entity(EntityComponentManager& ecm,
-  const SimObj& base_obj, const Entity& to_move)
+  const SimEntity& base_obj, const Entity& to_move)
 {
   Entity base = base_obj.entity;
   const auto base_aabb = ecm.Component<components::AxisAlignedBox>(base);
@@ -154,15 +156,17 @@ void TeleportDispenserPlugin::place_on_entity(EntityComponentManager& ecm,
   ecm.Component<components::WorldPoseCmd>(to_move)->Data() = new_pose;
 }
 
-void TeleportDispenserPlugin::fill_robot_model_list(EntityComponentManager& ecm, std::unordered_map<std::string, rmf_fleet_msgs::msg::FleetState::UniquePtr>::iterator fleet_state_it, std::vector<SimObj>& robot_model_list)
+void TeleportDispenserPlugin::fill_robot_model_list(EntityComponentManager& ecm,
+  FleetStateIt fleet_state_it, std::vector<SimEntity>& robot_model_list)
 {
   for (const auto& rs : fleet_state_it->second->robots)
   {
     std::vector<Entity> entities =
       ecm.EntitiesByComponents(components::Name(rs.name),
         components::Model(), components::Static(false));
-    for(Entity& en : entities){
-      robot_model_list.push_back(SimObj(1,en));
+    for (Entity& en : entities)
+    {
+      robot_model_list.push_back(SimEntity(en));
     }
   }
 }
@@ -261,7 +265,8 @@ void TeleportDispenserPlugin::Configure(const Entity& entity,
 
   _ros_node = std::make_shared<rclcpp::Node>(_dispenser_common->guid);
   _dispenser_common->init_ros_node(_ros_node);
-  RCLCPP_INFO(_dispenser_common->ros_node->get_logger(), "Started node...");
+  RCLCPP_INFO(_dispenser_common->ros_node->get_logger(),
+    "Started TeleportIngestorPlugin node...");
 
   create_dispenser_bounding_box(ecm);
 }
@@ -282,21 +287,28 @@ void TeleportDispenserPlugin::PreUpdate(const UpdateInfo& info,
     tried_fill_dispenser = true;
   }
 
+  std::function<void(FleetStateIt,
+    std::vector<rmf_plugins_utils::SimEntity>&)> fill_robot_model_list_cb =
+    std::bind(&TeleportDispenserPlugin::fill_robot_model_list, this,
+      std::ref(ecm), std::placeholders::_1, std::placeholders::_2);
+
+  std::function<bool(const std::vector<rmf_plugins_utils::SimEntity>&,
+    SimEntity&)> find_nearest_model_cb =
+    std::bind(&TeleportDispenserPlugin::find_nearest_model, this,
+      std::ref(ecm), std::placeholders::_1, std::placeholders::_2);
+
+  std::function<void(const SimEntity&)> place_on_entity_cb =
+    std::bind(&TeleportDispenserPlugin::place_on_entity, this,
+      std::ref(ecm), std::placeholders::_1, _item_en);
+
   std::function<bool(void)> check_filled_cb = [&]()
     {
       return ecm.Component<components::AxisAlignedBox>(_dispenser)->Data().
         Contains(ecm.Component<components::Pose>(_item_en)->Data().Pos());
     };
 
-  std::function<void(std::unordered_map<std::string, rmf_fleet_msgs::msg::FleetState::UniquePtr>::iterator, std::vector<rmf_plugins_utils::SimObj>&)> fill_robot_model_list_cb =
-    std::bind(&TeleportDispenserPlugin::fill_robot_model_list, this, std::ref(ecm), std::placeholders::_1, std::placeholders::_2);
-  std::function<bool(const std::vector<rmf_plugins_utils::SimObj>&, SimObj&)> find_nearest_model_cb =
-    std::bind(&TeleportDispenserPlugin::find_nearest_model, this, std::ref(ecm), std::placeholders::_1, std::placeholders::_2);
-  std::function<void(const SimObj&)> place_on_entity_cb =
-    std::bind(&TeleportDispenserPlugin::place_on_entity, this, std::ref(ecm), std::placeholders::_1, _item_en);
-
-  _dispenser_common->on_update(fill_robot_model_list_cb, find_nearest_model_cb, place_on_entity_cb, check_filled_cb);
-
+  _dispenser_common->on_update(fill_robot_model_list_cb, find_nearest_model_cb,
+    place_on_entity_cb, check_filled_cb);
 }
 
 IGNITION_ADD_PLUGIN(

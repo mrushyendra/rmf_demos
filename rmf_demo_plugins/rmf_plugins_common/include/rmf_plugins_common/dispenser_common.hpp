@@ -36,6 +36,8 @@ class TeleportDispenserCommon
 {
 public:
   using FleetState = rmf_fleet_msgs::msg::FleetState;
+  using FleetStateIt =
+    std::unordered_map<std::string, FleetState::UniquePtr>::iterator;
   using DispenserState = rmf_dispenser_msgs::msg::DispenserState;
   using DispenserRequest = rmf_dispenser_msgs::msg::DispenserRequest;
   using DispenserResult = rmf_dispenser_msgs::msg::DispenserResult;
@@ -61,9 +63,11 @@ public:
   void fleet_state_cb(FleetState::UniquePtr msg);
   void dispenser_request_cb(DispenserRequest::UniquePtr msg);
   void on_update(
-    std::function<void(std::unordered_map<std::string, FleetState::UniquePtr>::iterator, std::vector<rmf_plugins_utils::SimObj>&)> fill_robot_model_list_cb,
-    std::function<bool(const std::vector<rmf_plugins_utils::SimObj>&, rmf_plugins_utils::SimObj&)> find_nearest_model_cb,
-    std::function<void(const rmf_plugins_utils::SimObj&)> place_on_entity_cb,
+    std::function<void(FleetStateIt,
+    std::vector<rmf_plugins_utils::SimEntity>&)> fill_robot_model_list_cb,
+    std::function<bool(const std::vector<rmf_plugins_utils::SimEntity>&,
+    rmf_plugins_utils::SimEntity&)> find_nearest_model_cb,
+    std::function<void(const rmf_plugins_utils::SimEntity&)> place_on_entity_cb,
     std::function<bool(void)> check_filled_cb);
   void init_ros_node(const rclcpp::Node::SharedPtr node);
 
@@ -76,9 +80,11 @@ private:
 
   void try_refill_dispenser(std::function<bool(void)> check_filled_cb);
   bool dispense_on_nearest_robot(
-    std::function<void(std::unordered_map<std::string, FleetState::UniquePtr>::iterator, std::vector<rmf_plugins_utils::SimObj>&)> fill_robot_model_list_cb,
-    std::function<bool(const std::vector<rmf_plugins_utils::SimObj>&, rmf_plugins_utils::SimObj&)> find_nearest_model_cb,
-    std::function<void(const rmf_plugins_utils::SimObj&)> place_on_entity_cb,
+    std::function<void(FleetStateIt,
+    std::vector<rmf_plugins_utils::SimEntity>&)> fill_robot_model_list_cb,
+    std::function<bool(const std::vector<rmf_plugins_utils::SimEntity>&,
+    rmf_plugins_utils::SimEntity&)> find_nearest_model_cb,
+    std::function<void(const rmf_plugins_utils::SimEntity&)> place_on_entity_cb,
     const std::string& fleet_name);
 };
 

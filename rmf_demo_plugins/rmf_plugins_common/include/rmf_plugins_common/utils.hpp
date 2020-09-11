@@ -7,26 +7,30 @@
 
 namespace rmf_plugins_utils {
 
-struct SimObj {
-  int Simulator;
-  uint64_t entity;
-  std::string name;
+// Holds parameter identifying an entity in either Ignition Gazebo or Gazebo classic
+struct SimEntity
+{
+  uint64_t entity; // If used for Ignition Gazebo
+  std::string name; // If used for Gazebo classic
 
-  SimObj(int simulator_type, uint64_t en) : Simulator(simulator_type), entity(en){
+  SimEntity(uint64_t en)
+  : entity(en)
+  {
     name = "";
   }
-  SimObj(int simulator_type, std::string nm) : Simulator(simulator_type), name(nm){
+  SimEntity(std::string nm)
+  : name(nm)
+  {
     entity = 0;
   }
-  SimObj(){
-    int simulator = 1;
-    entity = 0;
+  SimEntity()
+  {
     name = "";
-  }
-  ~SimObj(){
+    entity = 0;
   }
 };
 
+/////////////////////////////////////////////////////////////////////////////////////////////////
 // TODO(MXG): Refactor the use of this function to replace it with
 // compute_desired_rate_of_change()
 double compute_ds(
