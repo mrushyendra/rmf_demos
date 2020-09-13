@@ -38,7 +38,7 @@ set(IGN_PLUGIN_VER 1)
 ign_find_package(ignition-common3 REQUIRED)
 set(IGN_COMMON_VER 3)
 ign_find_package(ignition-math4 REQUIRED)
-ign_find_package(sdformat9 REQUIRED)
+ign_find_package(sdformat10 REQUIRED)
 set(IGN_MATH_VER 4)
 
 find_package(std_msgs REQUIRED)
@@ -115,8 +115,6 @@ target_link_libraries(readonly
     ${rclcpp_LIBRARIES}
     ignition-gazebo${IGN_GAZEBO_VER}::ignition-gazebo${IGN_GAZEBO_VER}
     ignition-plugin${IGN_PLUGIN_VER}::ignition-plugin${IGN_PLUGIN_VER}
-    #${GAZEBO_LIBRARIES}
-    #${gazebo_ros_LIBRARIES}
     ${rmf_plugins_common_LIBRARIES}
 )
 
@@ -124,7 +122,6 @@ target_include_directories(readonly
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-    #${GAZEBO_INCLUDE_DIRS}
     ${std_msgs_INCLUDE_DIRS}
     ${rmf_plugins_common_INCLUDE_DIRS}
     ${rmf_fleet_msgs_INCLUDE_DIRS}
