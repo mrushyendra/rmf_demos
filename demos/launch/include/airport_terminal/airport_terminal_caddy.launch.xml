@@ -19,5 +19,3 @@
     </node>
   </group>
 </launch>
-
-<!-- ros2 run ros_ign_gazebo create -world sim_world -file '/home/rushy/Desktop/rmf_demos_ws/src/rmf_demos/rmf_demo_assets/models/Caddy/model.sdf' -name caddy2 -z 0.02 -y 0 -->
