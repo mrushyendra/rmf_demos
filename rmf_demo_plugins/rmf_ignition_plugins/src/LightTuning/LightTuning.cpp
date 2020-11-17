@@ -20,8 +20,10 @@
 
 #include <ignition/plugin/Register.hh>
 #include <ignition/gui/qt.h>
-//  #include <ignition/gui/Plugin.hh>
 #include <ignition/gazebo/gui/GuiSystem.hh>
+#include <ignition/gazebo/SdfEntityCreator.hh>
+#include <ignition/gazebo/components/Light.hh>
+#include <ignition/gazebo/components/Name.hh>
 
 #include <ignition/msgs.hh>
 #include <ignition/transport.hh>
@@ -35,12 +37,16 @@ class LightTuning : public gazebo::GuiSystem
 
 private:
   bool _light_on = false;
+  bool _turn_off = false;
+
   ignition::transport::Node _node;
 
-  void checkbox_checked(const std::string& name, bool checked);
+  void add_light();
+  void remove_light();
 
 protected slots:
   void OnEnableLight(bool);
+  void OnDisableLight(bool checked);
 
 public:
   LightTuning();
@@ -77,16 +83,36 @@ void LightTuning::Update(const ignition::gazebo::UpdateInfo &_info,
   return;
 }
 
-void LightTuning::OnEnableLight(bool checked)
+void LightTuning::OnDisableLight(bool)
 {
-  _light_on = checked;
-  checkbox_checked("Light On", checked);
+  if(_light_on){
+    remove_light();
+  }
 }
 
-void LightTuning::checkbox_checked(
-  const std::string& name, bool checked)
+void LightTuning::OnEnableLight(bool)
 {
-  ignition::msgs::EntityFactory create_light;
+  add_light();
+}
+
+void LightTuning::remove_light()
+{
+  ignition::msgs::Entity remove_light;
+  remove_light.set_name("sun");
+  remove_light.set_type(ignition::msgs::Entity_Type_LIGHT);
+
+  ignition::msgs::Boolean rep;
+  bool result;
+  _node.Request("/world/sim_world/remove", remove_light, 10000, rep, result);
+  std::cout << "Light on: " << _light_on << " bool result: " << result << std::endl;
+  if(result){
+    _light_on = false;
+  }
+}
+
+void LightTuning::add_light()
+{
+ignition::msgs::EntityFactory create_light;
   create_light.set_sdf(
   "<sdf version=\"1.7\">\
     <light type=\"directional\" name=\"sun\">\
@@ -106,8 +132,8 @@ void LightTuning::checkbox_checked(
 
   ignition::msgs::Boolean rep;
   bool result;
-  bool executed = _node.Request("/world/sim_world/create", create_light, 10000, rep, result);
-  std::cout << "Service result: " << executed << " bool result: " << result << std::endl;
+  _light_on = _node.Request("/world/sim_world/create", create_light, 10000, rep, result);
+  std::cout << "Service result: " << _light_on << " bool result: " << result << std::endl;
 }
 
 // Register this plugin

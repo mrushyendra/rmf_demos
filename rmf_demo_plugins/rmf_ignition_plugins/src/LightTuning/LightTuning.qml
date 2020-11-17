@@ -45,9 +45,20 @@ ToolBar {
       Layout.columnSpan: 1
       Layout.alignment: Qt.AlignVCenter | Qt.AlignLeft
       Layout.leftMargin: 2
-      checked: true
+      checked: false
       onClicked: {
         LightTuning.OnEnableLight(checked)
+      }
+    }
+
+    CheckBox {
+      text: qsTr("Turn off")
+      Layout.columnSpan: 1
+      Layout.alignment: Qt.AlignVCenter | Qt.AlignLeft
+      Layout.leftMargin: 2
+      checked: false
+      onClicked: {
+        LightTuning.OnDisableLight(checked)
       }
     }
   }
