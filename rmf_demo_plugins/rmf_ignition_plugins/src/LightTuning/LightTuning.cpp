@@ -15,6 +15,7 @@
  *
 */
 
+#include <functional>
 #include <queue>
 #include <string>
 #include <iostream>
@@ -361,6 +362,11 @@ void LightsModel::remove_light(int idx)
 
 sdf::Light& LightsModel::get_light(int idx)
 {
+  if(idx >= _lights.size())
+  {
+    ignerr << "invalid idxxxxxxxxxx " << std::endl;
+    throw 20;
+  }
   return _lights[idx];
 }
 
@@ -371,6 +377,12 @@ sdf::Light& LightsModel::get_light(const std::string& name)
     {
       return light.Name() == name;
     });
+  
+  if(it == _lights.end())
+  {
+    ignerr << "invalid nameeeeeee " << std::endl;
+    throw 10;
+  }
   return *it;
 }
 
@@ -429,13 +441,14 @@ private:
   {
     std::string name; // Name of the LightMarker
     ignition::gazebo::Entity en;
+    ignition::math::Pose3d last_set_pose;
   };
   // List of pairs of light name and corresponding marker name being spawned
   std::vector<std::pair<std::string, std::string>> _markers_spawn_pipeline;
   // Map from light name to its corresponding marker
   std::unordered_map<std::string, LightMarker> _markers;
 
-  enum class Action {REMOVE, CREATE};
+  enum class Action {REMOVE, CREATE, PENDING};
   // Map from a light name to a queue of create/remove service requests
   // for that corresponding light
   std::unordered_map<std::string, std::queue<Action>> actions;
@@ -451,6 +464,7 @@ private:
   // Sends a service request to delete the light with name `name`
   // as well as its corresponding LightMarker
   void remove_light_service(const std::string& name);
+  void light_service_cb(std::string name, const ignition::msgs::Boolean&, const bool);
   // Sends a service request to render the LightMarker corresponding to the light
   // with name `light_name` using Ignition transport
   void create_marker_service(
@@ -479,7 +493,7 @@ void LightTuning::Update(const ignition::gazebo::UpdateInfo&,
   ignition::gazebo::EntityComponentManager& ecm)
 {
   // Get world name for sending create/remove requests later.
-  // Assumes there is only 1 world in the simulation
+  // ASsumes there is only 1 world in the simulation
   if (!_world_name.size())
   {
     ecm.Each<ignition::gazebo::components::World,
@@ -507,8 +521,12 @@ void LightTuning::Update(const ignition::gazebo::UpdateInfo&,
       ignition::gazebo::components::Model());
     if (marker_en != ignition::gazebo::kNullEntity)
     {
-      _markers[light_name] = LightMarker {marker_name, marker_en};
+      auto pose_component = ecm.Component<ignition::gazebo::components::Pose>(marker_en);
+      auto pose = pose_component ? pose_component->Data() : ignition::math::Pose3d();
+      _markers[light_name] = LightMarker {marker_name, marker_en, pose};
+      ignerr << "erasing " << std::endl;
       _new_markers_it = _markers_spawn_pipeline.erase(_new_markers_it);
+      ignerr << "erased " << std::endl;
     }
     else
     {
@@ -517,16 +535,21 @@ void LightTuning::Update(const ignition::gazebo::UpdateInfo&,
   }
 
   // Update GUI to show latest poses of LightMarkers
+  //ignerr << "updating markers " << std::endl;
   for (auto it = _markers.begin(); it != _markers.end(); ++it)
   {
     auto pose =
       ecm.Component<ignition::gazebo::components::Pose>(it->second.en);
-    if (pose)
+    if (pose && pose->Data() != it->second.last_set_pose)
     {
+      ignerr << "accessing pose " << std::endl;
       poseChanged(QString(it->first.c_str()),
         QString(to_string(pose->Data()).c_str()));
+      it->second.last_set_pose = pose->Data();
+      ignerr << "accessed pose " << std::endl;
     }
   }
+  //ignerr << "done updating " << std::endl;
 
   // When multiple create/remove requests for the same entity are sent
   // in the same update step, the order of processing may be non-deterministic.
@@ -541,13 +564,15 @@ void LightTuning::Update(const ignition::gazebo::UpdateInfo&,
     {
       if (light_queue_it->second.front() == Action::CREATE)
       {
+        ignerr << "creating " << std::endl;
+        light_queue_it->second.front() = Action::PENDING;
         create_light_service(ecm, light_queue_it->first);
-        light_queue_it->second.pop();
       }
-      else
+      else if (light_queue_it->second.front() == Action::REMOVE)
       {
+        ignerr << "removing " << std::endl;
+        light_queue_it->second.front() = Action::PENDING;
         remove_light_service(light_queue_it->first);
-        light_queue_it->second.pop();
         // Mark light for erasure from map if last request is a remove request
         // and no other requests remain
         if (light_queue_it->second.empty())
@@ -555,11 +580,17 @@ void LightTuning::Update(const ignition::gazebo::UpdateInfo&,
           erase = true;
         }
       }
+      else
+      {
+        ignerr << "pending " << std::endl;
+      }
     }
 
     if (erase)
     {
+      ignerr << "erasing..." << std::endl;
       light_queue_it = actions.erase(light_queue_it);
+      ignerr << "erased " << std::endl;
     }
     else
     {
@@ -629,31 +660,49 @@ std::string LightTuning::light_to_sdf_string(const sdf::Light& light)
 
 // Necesary to supply callbacks to the service requests in order for the
 // requests to execute properly, though they are not used for anything here.
-void light_service_cb(const ignition::msgs::Boolean&, const bool)
+void LightTuning::light_service_cb(std::string name, const ignition::msgs::Boolean&, const bool)
 {
+  ignerr << "light service callback " << name << std::endl;
+  auto light_queue_it = actions.find(name);
+  // Add to queue of requests to remove from simulation
+  if (light_queue_it != actions.end())
+  {
+    if (light_queue_it->second.size()
+      && light_queue_it->second.front() == Action::PENDING)
+    {
+      ignerr << "removing pending " << std::endl;
+      light_queue_it->second.pop();
+    }
+  }
 }
 
 // Assumes any service requests will be successful
 void LightTuning::create_light_service(
   const ignition::gazebo::EntityComponentManager& ecm, const std::string& name)
 {
+  ignerr << "create light service " << std::endl;
   ignition::msgs::EntityFactory create_light_req;
   const sdf::Light& light = _model.get_light(name);
+  std::function<void(const ignition::msgs::Boolean&, const bool)> callback =
+    std::bind(&LightTuning::light_service_cb, this, name, std::placeholders::_1, std::placeholders::_2);
   create_light_req.set_sdf(light_to_sdf_string(light));
   _node.Request("/world/" + _world_name + "/create",
-    create_light_req, light_service_cb);
-
+    create_light_req, callback);
+  ignerr << "spawn light request sent " << std::endl;
   create_marker_service(ecm, name, light.RawPose());
 }
 
 void LightTuning::remove_light_service(const std::string& name)
 {
+  ignerr << "remove light service " << std::endl;
   ignition::msgs::Entity remove_light_req;
   remove_light_req.set_name(name);
+  std::function<void(const ignition::msgs::Boolean&, const bool)> callback =
+    std::bind(&LightTuning::light_service_cb, this, name, std::placeholders::_1, std::placeholders::_2);
   remove_light_req.set_type(ignition::msgs::Entity_Type_LIGHT);
   _node.Request("/world/" + _world_name + "/remove",
-    remove_light_req, light_service_cb);
-
+    remove_light_req, callback);
+  ignerr << "remove light request sent" << std::endl;
   remove_marker_service(name);
 }
 
@@ -665,6 +714,7 @@ void LightTuning::create_marker_service(
   const ignition::gazebo::EntityComponentManager& ecm,
   const std::string& light_name, const ignition::math::Pose3d& pose)
 {
+  //ignerr << "create marker service " << std::endl;
   std::string marker_name = light_name + "_marker";
   while (
     ecm.EntityByComponents(ignition::gazebo::components::Name(marker_name))
@@ -679,10 +729,12 @@ void LightTuning::create_marker_service(
     create_marker_req, marker_service_cb);
 
   _markers_spawn_pipeline.push_back({light_name, marker_name});
+  //ignerr << "spawn marker request sent " << std::endl;
 }
 
 void LightTuning::remove_marker_service(const std::string& light_name)
 {
+  //ignerr << "remove marker service " << std::endl;
   const std::unordered_map<std::string, LightMarker>::iterator it =
     _markers.find(light_name);
   if (it == _markers.end())
@@ -700,6 +752,7 @@ void LightTuning::remove_marker_service(const std::string& light_name)
     remove_marker_req, marker_service_cb);
 
   _markers.erase(it);
+  //ignerr << "remove marker request sent " << std::endl;
 }
 
 // Helper template function to parse GUI input and update the sdf Light's property
@@ -727,6 +780,7 @@ void LightTuning::OnCreateLightBtnPress(
   const QString& spot_outer_angle_str,
   const QString& spot_falloff_str)
 {
+  ignerr << "got here " << std::endl;
   sdf::Light& light = _model.get_light(idx);
   light.SetName(name.toStdString());
   light.SetCastShadows(cast_shadow);
@@ -757,14 +811,23 @@ void LightTuning::OnCreateLightBtnPress(
     if (!(light_queue_it->second.size()
       && light_queue_it->second.back() == Action::REMOVE))
     {
+      ignerr << "adding remove action " << std::endl;
       light_queue_it->second.push(Action::REMOVE);
     }
   }
   else
   {
+    ignerr << "adding new light to queues " << std::endl;
     light_queue_it = actions.insert({light.Name(), std::queue<Action>()}).first;
   }
-  light_queue_it->second.push(Action::CREATE);
+
+  if (!(light_queue_it->second.size()
+    && light_queue_it->second.back() == Action::CREATE))
+  {
+    ignerr << "adding create action " << std::endl;
+    light_queue_it->second.push(Action::CREATE);
+  }
+  ignerr << "added actions to queue " << std::endl;
 }
 
 void LightTuning::OnRemoveLightBtnPress(int idx, const QString& name)

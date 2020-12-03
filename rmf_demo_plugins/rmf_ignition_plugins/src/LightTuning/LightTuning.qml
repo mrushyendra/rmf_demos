@@ -144,6 +144,18 @@ Rectangle {
         width: parent.width
         color: lightGrey
 
+        function createLight() {
+          LightTuning.OnCreateLightBtnPress(model.idx,
+            cast_shadow.checked,
+            lightTypeList.get(light_type.currentIndex).text,
+            model.name, pose.text, diffuse.text,
+            specular.text, attenuation_range.text,
+            attenuation_constant.value, attenuation_linear.value,
+            attenuation_quadratic.value, direction.text,
+            spot_inner_angle.value, spot_outer_angle.value,
+            spot_falloff.text)     
+        }
+
         Column {
           anchors.fill: parent
 
@@ -296,6 +308,12 @@ Rectangle {
                       onPoseChanged: {
                         pose.text = (nm == model.name && !pose_manual_toggle.checked) ?
                           new_pose : pose.text;
+                          createLight();
+                      }
+                    }
+                    onTextEdited : {
+                      if (pose_manual_toggle.checked) {
+                        createLight();
                       }
                     }
                 }
@@ -322,6 +340,9 @@ Rectangle {
                     placeholderText: "1 1 1 1"
                     text: model.diffuse
                     horizontalAlignment: Qt.AlignHCenter
+                    onTextEdited : {
+                      createLight()
+                    }
                 }
 
                 // Pick diffuse color with GUI instead
@@ -345,7 +366,8 @@ Rectangle {
                             + ' ' + diffuseColorDialog.color.g.toFixed(2)
                             + ' ' + diffuseColorDialog.color.b.toFixed(2)
                             + ' ' + diffuseColorDialog.color.a.toFixed(2);
-                          close()
+                          createLight();
+                          close();
                       }
                       onRejected: {
                           close()
@@ -370,6 +392,9 @@ Rectangle {
                     text: model.specular
                     placeholderText: "1 1 1 1"
                     horizontalAlignment: Qt.AlignHCenter
+                    onTextEdited : {
+                      createLight()
+                    }
                 }
                 // Pick specular color with GUI instead
                 Button {
@@ -392,6 +417,7 @@ Rectangle {
                             + ' ' + specularColorDialog.color.g.toFixed(2)
                             + ' ' + specularColorDialog.color.b.toFixed(2)
                             + ' ' + specularColorDialog.color.a.toFixed(2);
+                          createLight();
                           close()
                       }
                       onRejected: {
@@ -418,6 +444,9 @@ Rectangle {
                     validator: DoubleValidator {notation: DoubleValidator.StandardNotation;}
                     placeholderText: "10"
                     horizontalAlignment: Qt.AlignHCenter
+                    onTextEdited : {
+                      createLight()
+                    }
                 }
               }
 
@@ -438,6 +467,11 @@ Rectangle {
                   to: 1.0
                   value: model.attenuation_constant
                   Layout.preferredWidth: 100
+                  onPressedChanged: {
+                    if (!pressed) {
+                      createLight();
+                    }
+                  }
                 }
 
                 Label {
@@ -466,6 +500,11 @@ Rectangle {
                   to: 1.0
                   value: model.attenuation_linear
                   Layout.preferredWidth: 100
+                  onPressedChanged: {
+                    if (!pressed) {
+                      createLight();
+                    }
+                  }
                 }
 
                 Label {
@@ -494,6 +533,11 @@ Rectangle {
                   to: 1.0
                   value: model.attenuation_quadratic
                   Layout.preferredWidth: 100
+                  onPressedChanged: {
+                    if (!pressed) {
+                      createLight();
+                    }
+                  }
                 }
 
                 Label {
@@ -521,6 +565,9 @@ Rectangle {
                     text: model.direction
                     placeholderText: "0 0 -1"
                     horizontalAlignment: Qt.AlignHCenter
+                    onTextEdited : {
+                      createLight()
+                    }
                 }
               }
 
@@ -566,6 +613,11 @@ Rectangle {
                       to: Math.PI
                       value: model.spot_inner_angle
                       Layout.preferredWidth: 100
+                      onPressedChanged: {
+                        if (!pressed) {
+                          createLight();
+                        }
+                      }
                     }
 
                     Label {
@@ -594,6 +646,11 @@ Rectangle {
                       to: Math.PI
                       value: model.spot_outer_angle
                       Layout.preferredWidth: 100
+                      onPressedChanged: {
+                        if (!pressed) {
+                          createLight();
+                        }
+                      }
                     }
 
                     Label {
@@ -622,6 +679,9 @@ Rectangle {
                         validator: DoubleValidator {notation: DoubleValidator.StandardNotation;}
                         placeholderText: "0"
                         horizontalAlignment: Qt.AlignHCenter
+                        onTextEdited : {
+                          createLight();
+                        }
                     }
                   }
                 }
@@ -635,15 +695,7 @@ Rectangle {
                 Button {
                   text: "Create"
                   onClicked: {
-                    LightTuning.OnCreateLightBtnPress(model.idx,
-                      cast_shadow.checked,
-                      lightTypeList.get(light_type.currentIndex).text,
-                      model.name, pose.text, diffuse.text,
-                      specular.text, attenuation_range.text,
-                      attenuation_constant.value, attenuation_linear.value,
-                      attenuation_quadratic.value, direction.text,
-                      spot_inner_angle.value, spot_outer_angle.value,
-                      spot_falloff.text)
+                    createLight()
                   }
                   Layout.leftMargin: margin
                   Layout.bottomMargin: 5
